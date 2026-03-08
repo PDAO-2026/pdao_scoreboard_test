@@ -31,7 +31,7 @@ except ImportError:
     swagger = None
 
 # for using local runs file
-local_flag = 1
+local_flag = False
 LOCAL_RUNS_PATH = "backend_file/PDAO2025_result.json"
 
 STATUS_PATH = "backend_file/status.json"
@@ -468,7 +468,8 @@ def api_runs():
     runs = data["data"]["runs"]
     yes_runs = extract_first_yes_runs(runs)
     status = load_status()
-    for run in yes_runs or run["id"] == first[run["problem"]]:
+    # for run in yes_runs or run["id"] == first[run["problem"]]:
+    for run in yes_runs:
         if run["problem"] not in first:
             first[run["problem"]] = run.get("id")
             run["fst"] = True
