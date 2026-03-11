@@ -140,6 +140,7 @@ git pull origin main
 6. **等待審核**：
    - 等待至少一位團隊成員審核並 approve
    - 根據 review 意見進行必要的修改
+   - 要看別人的 branch 可以 `git checkout -b "分支名稱"  origin/"分支名稱"`
 
 7. **合併到 main**：
    - 審核通過後，才能將 PR 合併到 `main` 分支
