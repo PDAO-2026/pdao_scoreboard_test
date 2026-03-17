@@ -37,13 +37,13 @@ config =
      *    ${apiBase}/runs.json
      *    ${apiBase}/contest.json
      */
-    /** example config for pdogs.ntu.im in PDAO 2025: **/
+    /** example config for pdogs.ntu.im in PDAO 2026: */
     apiBase : "http://localhost:3000/pdao_be/api/runs",
-    contestData : "http://localhost:3000/pdao_be/api/contest_data", 
-    /**
+    contestData : "http://localhost:3000/pdao_be/api/contest_data",
+    /*
     apiBase : "./PDAO2025_result.json",
     contestData : "./PDAO2025_contestData.json",
-    **/
+    */
     /**
      * Specify whether to use automatically diff and feed updated runs.
      *
@@ -105,7 +105,7 @@ config =
      * The interval time (in milliseconds) of fetching run updates
      * (where instant-feeding with WebSocket is not used)
      */
-    auto_refresh_interval : 3600000,
+    auto_refresh_interval : 10000,
 
 
     /** Specify whether to use pagination, or the number of teams per page. */
@@ -121,7 +121,7 @@ config =
      * e.g. function(team) { ... }
      */
     // this is the list of teams to be excluded from the scoreboard in PDAO 2025
-    exclude_teams : [2283, 2284, 2285, 2286, 2287, 2288, 2289, 2290, 2291, 2292, 2293, 2294, 2295, 2296, 2297, 2298, 2299],
+    exclude_teams : [],
 
     /**
      * Specify additional foreign or extra teams, as a function or a list of team id.

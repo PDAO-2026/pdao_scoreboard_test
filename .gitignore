@@ -46,3 +46,6 @@ backend/backend_file/status.json
 backend/backend_file/account.json
 backend/backend_file/session_key.txt
 backend/backend_file/contest_data.json
+
+# Data folder
+資料/
