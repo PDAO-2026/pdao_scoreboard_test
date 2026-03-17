@@ -38,8 +38,8 @@ config =
      *    ${apiBase}/contest.json
      */
     /** example config for pdogs.ntu.im in PDAO 2026: */
-    apiBase : "http://localhost:3000/pdao_be/api/runs",
-    contestData : "http://localhost:3000/pdao_be/api/contest_data",
+    apiBase : "https://ntu.im/pdao_be/api/runs",
+    contestData : "https://ntu.im/pdao_be/api/contest_data",
     /*
     apiBase : "./PDAO2025_result.json",
     contestData : "./PDAO2025_contestData.json",
