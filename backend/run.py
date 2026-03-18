@@ -582,6 +582,89 @@ def frozen():
     save_frozen(Frozen_flag)
     return jsonify({"success": "True", "status": "True" if Frozen_flag else "False", "error": "Null"})
 
+@app.route("/pdao_be/api/opt_scores", methods=["GET"], endpoint="api-opt_scores")
+def get_opt_scores():
+    """
+    取得 opt 題目的分數資訊
+    ---
+    tags:
+      - Scores
+    parameters:
+      - in: query
+        name: view_id
+        type: integer
+        description: PDOGS 的 view ID（預設為 60）
+      - in: query
+        name: auth_token
+        type: string
+        description: 認證 token（預設從配置讀取）
+    responses:
+      200:
+        description: 成功取得 opt 分數資訊
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  team_id:
+                    type: integer
+                  team_name:
+                    type: string
+                  total_score:
+                    type: number
+      500:
+        description: 取得失敗
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            error:
+              type: string
+    """
+    try:
+        global token
+        # 從參數或配置中獲取 view_id 和 auth_token
+        view_id = request.args.get("view_id", "60")
+        auth_token = request.args.get("auth_token", token)
+        
+        if not auth_token:
+            return jsonify({"success": False, "error": "Auth token not configured"}), 400
+        
+        # 呼叫外部 PDOGS API
+        url = f"https://be.pdogs.ntu.im/team-project-scoreboard/view/{view_id}"
+        headers = {
+            "Auth-Token": auth_token,
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("success", False):
+            # 構建分數字典，以 team_id 為 key，total_score 為 value
+            scores = {}
+            for team_data in data.get("data", []):
+                team_id = str(team_data.get("team_id"))
+                total_score = team_data.get("total_score", 0)
+                scores[team_id] = total_score
+            
+            return jsonify({"success": True, "view_id": str(view_id), "data": scores})
+        else:
+            return jsonify({"success": False, "error": data.get("error", "Unknown error")}), 500
+            
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": f"API request failed: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Error: {str(e)}"}), 500
+
 def Initialize():
     secret_key = None
     try:

@@ -142,6 +142,67 @@ function($, Handlebars, Spotboard) {
         }
         optProblems.reverse();
 
+        // 依題目類型（CC/ML）各自請求不同 view_id 的分數
+        var optScoresApiUrl = Spotboard.config['optScoresApiUrl'] || '/pdao_be/api/opt_scores';
+        var optProblemViewIds = Spotboard.config['optProblemViewIds'] || { CC: 60, ML: 62 };
+        var scoreRequests = [];
+        var requestedViewIds = [];
+
+        for (var problemKey in optProblemViewIds) {
+            if (!optProblemViewIds.hasOwnProperty(problemKey)) continue;
+            var viewId = String(optProblemViewIds[problemKey]);
+            requestedViewIds.push(viewId);
+            scoreRequests.push($.ajax({
+                url: optScoresApiUrl,
+                type: 'GET',
+                dataType: 'json',
+                timeout: 5000,
+                data: { view_id: viewId }
+            }));
+        }
+
+        if (!scoreRequests.length) {
+            Spotboard.View._renderScoreboard(
+                rankedList, totalTeams, cpProblems, optProblems,
+                isTeamInfoHidden, $list, {}, optProblemViewIds
+            );
+            return;
+        }
+
+        $.when.apply($, scoreRequests)
+            .done(function() {
+                var responses = scoreRequests.length === 1 ? [arguments] : Array.prototype.slice.call(arguments);
+                var scoresByViewId = {};
+
+                for (var i = 0; i < responses.length; i++) {
+                    var payload = responses[i][0];
+                    var fallbackViewId = requestedViewIds[i];
+                    if (payload && payload.success && payload.data) {
+                        var responseViewId = payload.view_id ? String(payload.view_id) : fallbackViewId;
+                        scoresByViewId[responseViewId] = payload.data;
+                    }
+                }
+
+                Spotboard.View._renderScoreboard(
+                    rankedList, totalTeams, cpProblems, optProblems,
+                    isTeamInfoHidden, $list, scoresByViewId, optProblemViewIds
+                );
+            })
+            .fail(function(xhr, stat, err) {
+                if(console) console.log('Failed to fetch opt scores: ' + (err || stat));
+                Spotboard.View._renderScoreboard(
+                    rankedList, totalTeams, cpProblems, optProblems,
+                    isTeamInfoHidden, $list, {}, optProblemViewIds
+                );
+            });
+    };
+
+    /**
+     * 實際繪製計分板的內部函數
+     */
+    Spotboard.View._renderScoreboard = function(rankedList, totalTeams, cpProblems, optProblems, isTeamInfoHidden, $list, scoresByViewId, optProblemViewIds) {
+        scoresByViewId = scoresByViewId || {};
+        optProblemViewIds = optProblemViewIds || {};
         for(var idx in rankedList) {
             var teamStatus = rankedList[idx];
             var team = teamStatus.getTeam();
@@ -153,6 +214,23 @@ function($, Handlebars, Spotboard) {
             var time = teamStatus.getSectionPenalty('CP') || 0;
             var rankClass = getRankClass(rank, totalTeams);
 
+            // 增強 optProblems 以包含每個團隊的分數
+            var enhancedOptProblems = [];
+            for (var i = 0; i < optProblems.length; i++) {
+                var optProb = optProblems[i];
+                var teamId = team.getId();
+                var problemKey = String(optProb.label || optProb.name || '').toUpperCase();
+                var mappedViewId = String(optProblemViewIds[problemKey] || '');
+                var scoreMap = scoresByViewId[mappedViewId] || {};
+                var teamOptScore = scoreMap[teamId] || scoreMap[String(teamId)] || 0;
+                enhancedOptProblems.push({
+                    id: optProb.id,
+                    name: optProb.name,
+                    label: optProb.label,
+                    score: typeof teamOptScore === 'number' ? String(Math.round(teamOptScore)) : '0'
+                });
+            }
+
             var $item = $(Spotboard.JST['teamlist']({
                 id: team.getId(),
                 rank: rank,
@@ -163,7 +241,7 @@ function($, Handlebars, Spotboard) {
                 optScore: optScore,
                 time: time,
                 problems: cpProblems,
-                optProblems: optProblems
+                optProblems: enhancedOptProblems
             }));
             $item.data('team-id', team.getId());
 

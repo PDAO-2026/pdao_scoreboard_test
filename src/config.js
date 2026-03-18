@@ -40,6 +40,11 @@ config =
     /** example config for pdogs.ntu.im in PDAO 2026: */
     apiBase : "http://localhost:3002/pdao_be/api/runs",
     contestData : "http://localhost:3002/pdao_be/api/contest_data",
+    optScoresApiUrl : "http://localhost:3002/pdao_be/api/opt_scores",
+    optProblemViewIds : {
+        CC: 60,
+        ML: 62,
+    },
     /*
     apiBase : "./PDAO2025_result.json",
     contestData : "./PDAO2025_contestData.json",

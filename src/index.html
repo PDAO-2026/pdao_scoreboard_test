@@ -98,7 +98,10 @@
   <span class="score-time">{{time}}</span>
   <span class="opt-indicators">
 {{#each optProblems}}
-    <span class="opt-ind opt-{{this.name}}" data-problem-id="{{this.id}}">{{this.label}}</span>
+    <span class="opt-ind-wrapper">
+      <span class="opt-ind opt-{{this.name}}" data-problem-id="{{this.id}}">{{this.label}}</span>
+      <span class="opt-score" data-problem-id="{{this.id}}" style="display: block; font-size: 0.8em; text-align: center;">{{this.score}}</span>
+    </span>
 {{/each}}
   </span>
   <span class="score-opt">{{optScore}}</span>
