@@ -339,12 +339,19 @@ function($, Handlebars, Spotboard) {
 
         // Update scores
         var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-        var optScore = teamStatus.getSectionPoints('Opt') || 0;
         var time = teamStatus.getSectionPenalty('CP') || 0;
 
         $team.find('.score-cp').text(cpScore);
-        $team.find('.score-opt').text(optScore);
         $team.find('.score-time').text(time);
+        
+        // Calculate total opt score by summing CC and ML scores
+        var totalOptScore = 0;
+        $team.find('.opt-score').each(function() {
+            var scoreText = $(this).text();
+            var scoreValue = parseInt(scoreText) || 0;
+            totalOptScore += scoreValue;
+        });
+        $team.find('.score-opt').text(totalOptScore);
         
         // Update rank
         var rank = teamStatus.getRank();
