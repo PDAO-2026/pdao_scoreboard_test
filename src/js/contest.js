@@ -344,6 +344,24 @@
        return this.cache[cacheKey] = s;
     };
 
+    TeamStatus.prototype.getSectionBaseTime = function(section) {
+       var cacheKey = 'baseTime_' + section;
+       if (this.cache[cacheKey] != null) return this.cache[cacheKey];
+       var s = 0;
+       var _ref1 = this.problemStatuses;
+       for (var pid in _ref1) {
+          if (this.contest.getProblemSection(pid) === section) {
+             var t = _ref1[pid].getSolvedTime();
+             if (t != null) s += t;
+          }
+       }
+       return this.cache[cacheKey] = s;
+    };
+
+    TeamStatus.prototype.getSectionPenaltyOnly = function(section) {
+       return this.getSectionPenalty(section) - this.getSectionBaseTime(section);
+    };
+
     TeamStatus.prototype.getSectionLastSolvedTime = function(section) {
        var cacheKey = 'lastSolvedTime_' + section;
        if (this.cache[cacheKey] != null) return this.cache[cacheKey];

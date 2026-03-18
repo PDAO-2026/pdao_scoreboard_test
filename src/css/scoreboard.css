@@ -1286,6 +1286,22 @@ div.results:after {
     flex-shrink: 0;
     text-align: center;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-base {
+    line-height: 1.2;
+}
+
+.time-penalty {
+    font-size: 0.6em;
+    color: #d32f2f;
+    font-weight: 700;
+    line-height: 1;
+    min-height: 12px;
 }
 
 .opt-indicators {

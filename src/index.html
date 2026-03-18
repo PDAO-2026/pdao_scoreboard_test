@@ -95,7 +95,10 @@
 {{/each}}
   </span>
   <span class="score-cp">{{cpScore}}</span>
-  <span class="score-time">{{time}}</span>
+  <span class="score-time">
+    <span class="time-base">{{time}}</span>
+    <span class="time-penalty"></span>
+  </span>
   <span class="opt-indicators">
 {{#each optProblems}}
     <span class="opt-ind-wrapper">

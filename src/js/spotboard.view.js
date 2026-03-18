@@ -211,7 +211,7 @@ function($, Handlebars, Spotboard) {
             var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
             var optScore = teamStatus.getSectionPoints('Opt') || 0;
             var rank = teamStatus.getRank();
-            var time = teamStatus.getSectionPenalty('CP') || 0;
+            var time = teamStatus.getSectionBaseTime('CP') || 0;
             var rankClass = getRankClass(rank, totalTeams);
 
             // 增強 optProblems 以包含每個團隊的分數
@@ -339,10 +339,16 @@ function($, Handlebars, Spotboard) {
 
         // Update scores
         var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-        var time = teamStatus.getSectionPenalty('CP') || 0;
+        var baseTime = teamStatus.getSectionBaseTime('CP') || 0;
+        var penaltyOnly = teamStatus.getSectionPenaltyOnly('CP') || 0;
 
         $team.find('.score-cp').text(cpScore);
-        $team.find('.score-time').text(time);
+        $team.find('.time-base').text(baseTime);
+        if (penaltyOnly > 0) {
+            $team.find('.time-penalty').text('+' + penaltyOnly);
+        } else {
+            $team.find('.time-penalty').text('');
+        }
         
         // Calculate total opt score by summing CC and ML scores
         var totalOptScore = 0;
@@ -389,25 +395,20 @@ function($, Handlebars, Spotboard) {
             }
         });
 
-        // Update Opt problem indicators
-        $team.find('.opt-ind').each(function() {
-            var $ind = $(this);
-            var pid = $ind.data('problem-id');
-            var problem = contest.getProblem(pid);
-            if (!problem) return;
+        // Update Opt problem indicators — use score from opt-score span (from API)
+        $team.find('.opt-ind-wrapper').each(function() {
+            var $wrapper = $(this);
+            var $ind = $wrapper.find('.opt-ind');
+            var $scoreSpan = $wrapper.find('.opt-score');
+            var score = parseInt($scoreSpan.text()) || 0;
 
-            var problemStat = teamStatus.getProblemStatus(problem);
             $ind.removeClass('has-score');
             $ind.css('background-color', ''); // reset
 
-            // For optimization: gradient from light blue to dark blue based on score
-            var points = problemStat.getHighestScore ? problemStat.getHighestScore() : problemStat.getPoints();
-            var cfg = problemStat.constructor.OPT_CONFIG ? problemStat.constructor.OPT_CONFIG[problem.getName()] : null;
-            var maxPoints = cfg ? cfg.x : 50;
-            if (points > 0) {
+            if (score > 0) {
                 $ind.addClass('has-score');
                 // Gradient: ratio 0->1 maps light blue (#90caf9) to dark blue (#0d47a1)
-                var ratio = Math.min(points / maxPoints, 1);
+                var ratio = Math.min(score / 50, 1);
                 var r = Math.round(144 - ratio * (144 - 13));
                 var g = Math.round(202 - ratio * (202 - 71));
                 var b = Math.round(249 - ratio * (249 - 161));
