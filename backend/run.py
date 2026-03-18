@@ -684,4 +684,6 @@ def Initialize():
 Initialize()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3002, debug=True)
+    import os
+    is_dev = os.environ.get("FLASK_ENV") == "development"
+    app.run(host="0.0.0.0", port=3002, debug=is_dev)
