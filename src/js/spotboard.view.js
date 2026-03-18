@@ -89,12 +89,38 @@ function($, Handlebars, Spotboard) {
     };
 
 
-    // team list template (handlebars) from index.html
-    Spotboard.JST['teamlist'] = (function() {
-        var html = $('#team-handlebar-template').html().trim();
-        if(!html) throw new Error('team-handlebar-template is missing');
-        return Handlebars.compile(html);
-    })();
+    // team list template - manual string builder (no eval needed)
+    Spotboard.JST['teamlist'] = function(data) {
+        var html = '<div id="team-' + data.id + '" class="team rank-' + data.rankClass + '" data-team-id="' + data.id + '">';
+        html += '<span class="team-rank">' + data.rank + '</span>';
+        html += '<span class="team-name-col">';
+        html += '<span class="team-name">' + data.name + '</span>';
+        html += '<span class="team-dept">' + data.group + '</span>';
+        html += '</span>';
+        html += '<span class="problem-indicators">';
+        for (var i = 0; i < data.problems.length; i++) {
+            var p = data.problems[i];
+            html += '<span class="prob-ind-wrapper">';
+            html += '<span class="prob-ind prob-' + p.name + '" data-problem-id="' + p.id + '">' + p.name + '</span>';
+            html += '<span class="prob-penalty" data-problem-id="' + p.id + '"></span>';
+            html += '</span>';
+        }
+        html += '</span>';
+        html += '<span class="score-cp">' + data.cpScore + '</span>';
+        html += '<span class="score-time"><span class="time-base">' + data.time + '</span><span class="time-penalty"></span></span>';
+        html += '<span class="opt-indicators">';
+        for (var j = 0; j < data.optProblems.length; j++) {
+            var op = data.optProblems[j];
+            html += '<span class="opt-ind-wrapper">';
+            html += '<span class="opt-ind opt-' + op.name + '" data-problem-id="' + op.id + '">' + op.label + '</span>';
+            html += '<span class="opt-score" data-problem-id="' + op.id + '" style="display:block;font-size:0.8em;text-align:center;">' + (op.score || '') + '</span>';
+            html += '</span>';
+        }
+        html += '</span>';
+        html += '<span class="score-opt">' + data.optScore + '</span>';
+        html += '</div>';
+        return html;
+    };
 
     // Helper to get rank class for coloring
     var getRankClass = function(rank, totalTeams) {

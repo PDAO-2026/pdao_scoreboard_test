@@ -39,15 +39,15 @@ function($, Spotboard) {
     else Spotboard.Dashboard.hide();
 
     // template
-    Spotboard.JST['team-run-event'] = Handlebars.compile('\
-                <li class="run {{status}}" data-runid="{{runId}}">\
-                    <div class="balloon problem-{{problemId}}"></div>\
-                    Team <span class="team">{{teamName}}</span>\
-                    {{teamDisplayAction}}\
-                    <span class="problem">{{problemName}}</span>!\
-                    ({{minute}} min.)\
-                </li>\
-'.trim());
+    Spotboard.JST['team-run-event'] = function(data) {
+        return '<li class="run ' + data.status + '" data-runid="' + data.runId + '">' +
+            '<div class="balloon problem-' + data.problemId + '"></div>' +
+            'Team <span class="team">' + data.teamName + '</span>' +
+            data.teamDisplayAction +
+            '<span class="problem">' + data.problemName + '</span>!' +
+            '(' + data.minute + ' min.)' +
+            '</li>';
+    };
 
     Spotboard.Dashboard.createRunNotification = function(run) {
         if(!run) return null;

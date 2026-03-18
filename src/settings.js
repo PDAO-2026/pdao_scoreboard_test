@@ -38,9 +38,9 @@ config =
      *    ${apiBase}/contest.json
      */
     /** example config for pdogs.ntu.im in PDAO 2026: */
-    apiBase : "https://ntu.im/pdao_be/api/runs",
-    contestData : "https://ntu.im/pdao_be/api/contest_data",
-    optScoresApiUrl : "https://ntu.im/pdao_be/api/opt_scores",
+    apiBase : "http://localhost:3002/pdao_be/api/runs",
+    contestData : "http://localhost:3002/pdao_be/api/contest_data",
+    optScoresApiUrl : "http://localhost:3002/pdao_be/api/opt_scores",
     optProblemViewIds : {
         CC: 60,
         ML: 62,
