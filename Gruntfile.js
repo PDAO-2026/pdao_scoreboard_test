@@ -87,8 +87,8 @@ module.exports = function (grunt) {
                 } ]
             },
             config: {
-                src: 'src/settings.js',
-                dest: 'dist/settings.js',
+                src: 'src/config.js',
+                dest: 'dist/config.js',
                 options: {
                     process: function(content, srcpath) {
                         return content + '\n\n' +
