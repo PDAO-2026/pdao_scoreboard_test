@@ -127,28 +127,27 @@ function($, Handlebars, Spotboard) {
         // Get CP problems (A-H, first 8)
         var allProblems = contest.getProblems();
         var cpProblems = [];
-        for (var i = 0; i < allProblems.length && i < 8; i++) {
+        for (var i = 0; i < allProblems.length && i < 12; i++) {
             cpProblems.push({ id: allProblems[i].getId(), name: allProblems[i].getName() });
         }
 
-        // Get Opt problems (problems 9 and 10, i.e. indices 8-9, label as A, B)
-        // Only 2 optimization problems, 50 points each, total 100
+        // Get Opt problems (problems 12-13): display order CC, ML
         var optProblems = [];
-        var optLabels = ['A', 'B'];
-        for (var i = 8; i < allProblems.length && i < 10; i++) {
-            optProblems.push({ 
-                id: allProblems[i].getId(), 
+        for (var i = 12; i < allProblems.length && i < 14; i++) {
+            optProblems.push({
+                id: allProblems[i].getId(),
                 name: allProblems[i].getName(),
-                label: optLabels[i - 8]
+                label: allProblems[i].getName()
             });
         }
+        optProblems.reverse();
 
         for(var idx in rankedList) {
             var teamStatus = rankedList[idx];
             var team = teamStatus.getTeam();
             if(Spotboard.Manager.isTeamExcluded(team)) continue;
 
-            var cpScore = teamStatus.getSectionPoints('CP') || 0;
+            var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
             var optScore = teamStatus.getSectionPoints('Opt') || 0;
             var rank = teamStatus.getRank();
             var time = teamStatus.getSectionPenalty('CP') || 0;
@@ -261,10 +260,10 @@ function($, Handlebars, Spotboard) {
             teamStatus = contest.getTeamStatus(teamId);
 
         // Update scores
-        var cpScore = teamStatus.getSectionPoints('CP') || 0;
+        var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
         var optScore = teamStatus.getSectionPoints('Opt') || 0;
         var time = teamStatus.getSectionPenalty('CP') || 0;
-        
+
         $team.find('.score-cp').text(cpScore);
         $team.find('.score-opt').text(optScore);
         $team.find('.score-time').text(time);
@@ -273,7 +272,7 @@ function($, Handlebars, Spotboard) {
         var rank = teamStatus.getRank();
         Spotboard.View.updateTeamRank($team, rank, totalTeams);
 
-        // Update CP problem indicators (A-H)
+        // Update CP problem indicators (A-L)
         $team.find('.prob-ind').each(function() {
             var $ind = $(this);
             var pid = $ind.data('problem-id');
@@ -290,6 +289,19 @@ function($, Handlebars, Spotboard) {
             } else if (problemStat.isFailed()) {
                 $ind.addClass('failed');
             }
+
+            // Show per-problem penalty (red text below)
+            var $penalty = $ind.closest('.prob-ind-wrapper').find('.prob-penalty');
+            if ($penalty.length) {
+                var penaltyAttempts = Math.max(0, problemStat.getFailedAttempts() - 3);
+                if (penaltyAttempts > 0 && problemStat.isAccepted()) {
+                    $penalty.text('+' + (penaltyAttempts * 10));
+                } else if (penaltyAttempts > 0) {
+                    $penalty.text('+' + (penaltyAttempts * 10));
+                } else {
+                    $penalty.text('');
+                }
+            }
         });
 
         // Update Opt problem indicators
@@ -301,11 +313,20 @@ function($, Handlebars, Spotboard) {
 
             var problemStat = teamStatus.getProblemStatus(problem);
             $ind.removeClass('has-score');
+            $ind.css('background-color', ''); // reset
 
-            // For optimization: show has-score if any points > 0
+            // For optimization: gradient from light blue to dark blue based on score
             var points = problemStat.getHighestScore ? problemStat.getHighestScore() : problemStat.getPoints();
+            var cfg = problemStat.constructor.OPT_CONFIG ? problemStat.constructor.OPT_CONFIG[problem.getName()] : null;
+            var maxPoints = cfg ? cfg.x : 50;
             if (points > 0) {
                 $ind.addClass('has-score');
+                // Gradient: ratio 0->1 maps light blue (#90caf9) to dark blue (#0d47a1)
+                var ratio = Math.min(points / maxPoints, 1);
+                var r = Math.round(144 - ratio * (144 - 13));
+                var g = Math.round(202 - ratio * (202 - 71));
+                var b = Math.round(249 - ratio * (249 - 161));
+                $ind.css('background-color', 'rgb(' + r + ',' + g + ',' + b + ')');
             }
         });
     };

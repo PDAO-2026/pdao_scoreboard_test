@@ -88,7 +88,10 @@
   </span>
   <span class="problem-indicators">
 {{#each problems}}
-    <span class="prob-ind prob-{{this.name}}" data-problem-id="{{this.id}}">{{this.name}}</span>
+    <span class="prob-ind-wrapper">
+      <span class="prob-ind prob-{{this.name}}" data-problem-id="{{this.id}}">{{this.name}}</span>
+      <span class="prob-penalty" data-problem-id="{{this.id}}"></span>
+    </span>
 {{/each}}
   </span>
   <span class="score-cp">{{cpScore}}</span>

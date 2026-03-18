@@ -523,8 +523,8 @@
         _this = this;
       return (_ref = this.cache.penalty) != null ? _ref : this.cache.penalty = (function() {
         if (_this.isAccepted()) {
-          // Penalty: Time + 10 * (Failed Attempts after 4th try)
-          var penaltyAttempts = Math.max(0, _this.getFailedAttempts() - 4);
+          // Penalty: Time + 10 * (Failed Attempts from 4th submission onwards)
+          var penaltyAttempts = Math.max(0, _this.getFailedAttempts() - 3);
           return penaltyAttempts * 10 + _this.getSolvedTime();
         } else {
           return 0;
@@ -537,7 +537,7 @@
         _this = this;
       return (_ref = this.cache.penaltyMemo) != null ? _ref : this.cache.penaltyMemo = (function() {
         if (_this.isAccepted()) {
-          var penaltyAttempts = Math.max(0, _this.getFailedAttempts() - 4);
+          var penaltyAttempts = Math.max(0, _this.getFailedAttempts() - 3);
           if (penaltyAttempts === 0) {
             return "" + (_this.getSolvedTime());
           } else {
@@ -549,42 +549,79 @@
       })();
     };
     
+    // CP problem weights: pdogs_score/100 * weight
+    // Default: 100/12 per problem. Update when finalized.
+    TeamProblemStatus.CP_WEIGHTS = {
+        'A': 100/12, 'B': 100/12, 'C': 100/12, 'D': 100/12,
+        'E': 100/12, 'F': 100/12, 'G': 100/12, 'H': 100/12,
+        'I': 100/12, 'J': 100/12, 'K': 100/12, 'L': 100/12
+    };
+
     TeamProblemStatus.prototype.getPoints = function() {
         var _ref, _this = this;
         return (_ref = this.cache.points) != null ? _ref : this.cache.points = (function() {
             var run = _this.getNetLastRun();
-            if (run != null) {
-                if (run.isJudgedYes()) return 100;
-                // Attempt to parse partial score if needed, e.g. from result string
-                // var score = parseInt(run.getResult());
-                // if (!isNaN(score)) return score;
+            if (run != null && run.isJudgedYes()) {
+                var problemName = _this.problem.getName();
+                var weight = TeamProblemStatus.CP_WEIGHTS[problemName];
+                if (weight != null) {
+                    return weight; // pdogs AC = 100/100 * weight = weight
+                }
+                return 100;
             }
             return 0;
         })();
     };
 
-    // For Optimization problems: get highest score across ALL runs (not just net runs)
-    // Max 50 points per optimization problem
-    TeamProblemStatus.prototype.getHighestScore = function() {
+    // For Optimization problems: get raw score (highest across ALL runs)
+    // The raw score is the pdogs score, stored in result field as a number
+    TeamProblemStatus.prototype.getRawScore = function() {
         var _ref, _this = this;
-        return (_ref = this.cache.highestScore) != null ? _ref : this.cache.highestScore = (function() {
+        return (_ref = this.cache.rawScore) != null ? _ref : this.cache.rawScore = (function() {
             var maxScore = 0;
-            var allRuns = _this.runs; // All runs, not just net runs
+            var allRuns = _this.runs;
             for (var i = 0; i < allRuns.length; i++) {
                 var run = allRuns[i];
                 var result = run.getResult();
-                // Check if it's a numeric score
                 var score = parseInt(result, 10);
                 if (!isNaN(score) && score > maxScore) {
                     maxScore = score;
                 }
-                // Also check if judged Yes (50 points for optimization)
-                if (run.isJudgedYes() && 50 > maxScore) {
-                    maxScore = 50;
+                // If pdogs only returns Yes/No, treat Yes as a placeholder score
+                if (run.isJudgedYes() && maxScore === 0) {
+                    maxScore = 1; // placeholder until we have real scores
                 }
             }
-            // Cap at 50 points per optimization problem
-            return Math.min(maxScore, 50);
+            return maxScore;
+        })();
+    };
+
+    // Optimization scoring config
+    // x = max points for this problem, B = baseline score
+    TeamProblemStatus.OPT_CONFIG = {
+        'ML': { x: 50, B: 10000000 },
+        'CC': { x: 50, B: 10000000 }
+    };
+
+    // For Optimization problems: calculate score using formula
+    // score = x * ((S_i - B) / (S_best - B))^1.5
+    // S_best must be set externally via Contest.prototype.updateOptBestScores()
+    TeamProblemStatus.prototype.getHighestScore = function() {
+        var _ref, _this = this;
+        return (_ref = this.cache.highestScore) != null ? _ref : this.cache.highestScore = (function() {
+            var rawScore = _this.getRawScore();
+            var problemName = _this.problem.getName();
+            var cfg = TeamProblemStatus.OPT_CONFIG[problemName];
+            if (!cfg) return 0;
+
+            var B = cfg.B;
+            var x = cfg.x;
+            var S_best = _this.problem._bestScore || 0;
+
+            if (rawScore <= B || S_best <= B) return 0;
+
+            var ratio = (rawScore - B) / (S_best - B);
+            return x * Math.pow(ratio, 1.5);
         })();
     };
 
@@ -913,13 +950,13 @@
        if (!this._problemSectionMap) {
          this._problemSectionMap = {};
          for (var i = 0; i < this.problems.length; i++) {
-            // First 8 problems (0-7) are CP
-            // Next 2 problems (8-9) are Optimization
+            // First 12 problems (0-11, A-L) are CP
+            // Next 2 problems (12-13, ML & CC) are Optimization
             // Any others are ignored (Other)
             var section;
-            if (i < 8) {
+            if (i < 12) {
                section = 'CP';
-            } else if (i < 10) {
+            } else if (i < 14) {
                section = 'Opt';
             } else {
                section = 'Other';
@@ -983,6 +1020,24 @@
       return this.teamStatuses[team.getId()];
     };
 
+    // Calculate best raw scores for optimization problems (S_best)
+    Contest.prototype.updateOptBestScores = function() {
+      var problems = this.getProblems();
+      for (var i = 0; i < problems.length; i++) {
+        var p = problems[i];
+        if (this.getProblemSection(p.getId()) !== 'Opt') continue;
+        var bestScore = 0;
+        for (var tid in this.teamStatuses) {
+          var ps = this.teamStatuses[tid].getProblemStatus(p);
+          if (ps) {
+            var raw = ps.getRawScore();
+            if (raw > bestScore) bestScore = raw;
+          }
+        }
+        p._bestScore = bestScore;
+      }
+    };
+
     Contest.prototype.getRankedTeamStatusList = function() {
       this.updateTeamStatusesAndRanks();
       return this.rankedTeamStatuses;
@@ -1011,6 +1066,8 @@
     };
 
     Contest.prototype.updateTeamStatusesAndRanks = function() {
+      // Clear caches first so opt scores recalculate with new S_best
+      this.updateOptBestScores();
       var rts, teamComparator, teamStatus, tid, ts;
       rts = (function() {
         var _ref, _results;
@@ -1023,15 +1080,15 @@
         return _results;
       }).call(this);
 
-      // Overall ranking: sum of CP + Opt scores
+      // Overall ranking: 0.6*opt + 0.4*CP
       var overallComparator = function(t1, t2) {
-          var total1 = t1.getSectionPoints('CP') + t1.getSectionPoints('Opt');
-          var total2 = t2.getSectionPoints('CP') + t2.getSectionPoints('Opt');
+          var total1 = 0.4 * t1.getSectionPoints('CP') + 0.6 * t1.getSectionPoints('Opt');
+          var total2 = 0.4 * t2.getSectionPoints('CP') + 0.6 * t2.getSectionPoints('Opt');
           if (total1 !== total2) return total2 - total1; // Descending Total Points
 
-          // Tie-breaker: Total Penalty
-          var pen1 = t1.getSectionPenalty('CP') + t1.getSectionPenalty('Opt');
-          var pen2 = t2.getSectionPenalty('CP') + t2.getSectionPenalty('Opt');
+          // Tie-breaker: CP Penalty (time)
+          var pen1 = t1.getSectionPenalty('CP');
+          var pen2 = t2.getSectionPenalty('CP');
           return pen1 - pen2; // Ascending Penalty
       };
 
