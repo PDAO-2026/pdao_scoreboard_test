@@ -229,31 +229,75 @@ function($, Handlebars, Spotboard) {
     Spotboard.View._renderScoreboard = function(rankedList, totalTeams, cpProblems, optProblems, isTeamInfoHidden, $list, scoresByViewId, optProblemViewIds) {
         scoresByViewId = scoresByViewId || {};
         optProblemViewIds = optProblemViewIds || {};
+
+        // Calculate opt total score per team from API data
+        var teamOptTotals = {};
+        var teamOptDetails = {};
+        for (var idx in rankedList) {
+            var ts = rankedList[idx];
+            var tid = ts.getTeam().getId();
+            var total = 0;
+            var details = {};
+            for (var i = 0; i < optProblems.length; i++) {
+                var op = optProblems[i];
+                var pk = String(op.label || op.name || '').toUpperCase();
+                var vid = String(optProblemViewIds[pk] || '');
+                var sm = scoresByViewId[vid] || {};
+                var s = sm[tid] || sm[String(tid)] || 0;
+                total += (typeof s === 'number' ? s : 0);
+                details[pk] = typeof s === 'number' ? Math.round(s) : 0;
+            }
+            teamOptTotals[tid] = Math.round(total);
+            teamOptDetails[tid] = details;
+        }
+
+        // Re-sort using opt scores from API: 0.6*opt + 0.4*CP
+        rankedList.sort(function(t1, t2) {
+            var total1 = 0.4 * (Math.round(t1.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[t1.getTeam().getId()] || 0);
+            var total2 = 0.4 * (Math.round(t2.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[t2.getTeam().getId()] || 0);
+            if (total1 !== total2) return total2 - total1;
+            var pen1 = t1.getSectionPenalty('CP') || 0;
+            var pen2 = t2.getSectionPenalty('CP') || 0;
+            return pen1 - pen2;
+        });
+
+        // Assign ranks
+        for (var r = 0; r < rankedList.length; r++) {
+            var curTeam = rankedList[r];
+            var curTotal = 0.4 * (Math.round(curTeam.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[curTeam.getTeam().getId()] || 0);
+            if (r === 0) {
+                curTeam._displayRank = 1;
+            } else {
+                var prevTeam = rankedList[r-1];
+                var prevTotal = 0.4 * (Math.round(prevTeam.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[prevTeam.getTeam().getId()] || 0);
+                if (curTotal === prevTotal && (curTeam.getSectionPenalty('CP') || 0) === (prevTeam.getSectionPenalty('CP') || 0)) {
+                    curTeam._displayRank = prevTeam._displayRank;
+                } else {
+                    curTeam._displayRank = r + 1;
+                }
+            }
+        }
+
         for(var idx in rankedList) {
             var teamStatus = rankedList[idx];
             var team = teamStatus.getTeam();
             if(Spotboard.Manager.isTeamExcluded(team)) continue;
 
             var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-            var optScore = teamStatus.getSectionPoints('Opt') || 0;
-            var rank = teamStatus.getRank();
+            var optScore = teamOptTotals[team.getId()] || 0;
+            var rank = teamStatus._displayRank || (parseInt(idx) + 1);
             var time = teamStatus.getSectionBaseTime('CP') || 0;
             var rankClass = getRankClass(rank, totalTeams);
 
-            // 增強 optProblems 以包含每個團隊的分數
             var enhancedOptProblems = [];
             for (var i = 0; i < optProblems.length; i++) {
                 var optProb = optProblems[i];
-                var teamId = team.getId();
                 var problemKey = String(optProb.label || optProb.name || '').toUpperCase();
-                var mappedViewId = String(optProblemViewIds[problemKey] || '');
-                var scoreMap = scoresByViewId[mappedViewId] || {};
-                var teamOptScore = scoreMap[teamId] || scoreMap[String(teamId)] || 0;
                 enhancedOptProblems.push({
                     id: optProb.id,
                     name: optProb.name,
                     label: optProb.label,
-                    score: typeof teamOptScore === 'number' ? String(Math.round(teamOptScore)) : '0'
+                    score: String(teamOptDetails[team.getId()][problemKey] || 0)
                 });
             }
 
@@ -274,7 +318,12 @@ function($, Handlebars, Spotboard) {
             $list.append($item);
         }
 
-        Spotboard.View.refreshScoreboard();
+        // Update team status (colors) without re-sorting
+        var totalTeamsForUpdate = rankedList.length;
+        $('#team-list .team').each(function() {
+            Spotboard.View.updateTeamStatus($(this), totalTeamsForUpdate);
+        });
+        Spotboard.View.updateVisibility();
         $(Spotboard).trigger('drew');
     };
 
