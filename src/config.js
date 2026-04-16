@@ -49,8 +49,8 @@ config =
     // 公式: score = weight * ((Si - baseline) / (Sbest - baseline))^1.5
     // 若 Si <= baseline，得分為 0
     optProblemFormula : {
-        CC: { weight: 50, baseline: 100000 },
-        ML: { weight: 50, baseline: 500 },
+        CC: { weight: 50, baseline: 0 },
+        ML: { weight: 50, baseline: 0 },
     },
     // 最佳化分數自動刷新間隔 (毫秒)，預設 60 秒
     opt_refresh_interval : 60000,
