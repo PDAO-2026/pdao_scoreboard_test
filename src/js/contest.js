@@ -570,9 +570,9 @@
     // CP problem weights: pdogs_score/100 * weight
     // Default: 100/12 per problem. Update when finalized.
     TeamProblemStatus.CP_WEIGHTS = {
-        'A': 100/12, 'B': 100/12, 'C': 100/12, 'D': 100/12,
-        'E': 100/12, 'F': 100/12, 'G': 100/12, 'H': 100/12,
-        'I': 100/12, 'J': 100/12, 'K': 100/12, 'L': 100/12
+        'A': 7, 'B': 9, 'C': 7, 'D': 7,
+        'E': 9, 'F': 8, 'G': 9, 'H': 8,
+        'I': 9, 'J': 9, 'K': 10, 'L': 6
     };
 
     TeamProblemStatus.prototype.getPoints = function() {
