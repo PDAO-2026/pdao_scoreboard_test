@@ -63,7 +63,7 @@ cd ~/pdao_scoreboard_test
 # 修改程式碼...
 # 如果改了前端(src/)，要重新 build
 npm run build
-
+grunt # 也可以
 git add <修改的檔案>
 git commit -m "描述"
 git push origin test-for-submission-2
