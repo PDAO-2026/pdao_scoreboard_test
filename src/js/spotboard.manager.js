@@ -281,7 +281,7 @@ function(Spotboard, $)  {
             $(this).css('display', 'none');
             $("#gif-on-icon").css('display', 'block');
             $("#mlg-container").css('display', 'block');
-            $("#snoopdogg-container").css('display', 'block');
+            $("#ks-container").css('display', 'block');
         });
 
         $("#gif-on-icon").click( function() {
@@ -289,7 +289,7 @@ function(Spotboard, $)  {
             $(this).css('display', 'none');
             $("#gif-off-icon").css('display', 'block');
             $("#mlg-container").css('display', 'none');
-            $("#snoopdogg-container").css('display', 'none');
+            $("#ks-container").css('display', 'none');
         });
 
         $("#feed-auto-icon").click( function() {

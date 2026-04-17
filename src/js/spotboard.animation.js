@@ -200,10 +200,12 @@ function($, Spotboard) {
                             if(solved_problem[problem_id] === undefined){
                                 if(Spotboard.config['sound_effects'])
                                     SE_first.play();
-                                $("#quick-gif").css("display", "block");
-                                setTimeout(() => {
-                                    $("#quick-gif").css("display", "none");
-                                }, 2000); // 3 秒後替換 (根據 GIF 的實際時長調整)
+                                if(Spotboard.config['gif_effects']) {
+                                    $("#iq-gif").css("display", "block");
+                                    setTimeout(() => {
+                                        $("#iq-gif").css("display", "none");
+                                    }, 4000); // Wait 4 seconds for new GIF display (adjust if needed)
+                                }
                                 solved_problem[problem_id] = true;
                             }
                             else if(Spotboard.config['sound_effects'])

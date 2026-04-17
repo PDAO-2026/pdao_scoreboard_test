@@ -118,6 +118,8 @@ function($, Handlebars, Spotboard) {
         }
         html += '</span>';
         html += '<span class="score-opt">' + data.optScore + '</span>';
+        var total = 0.4 * (data.cpScore || 0) + 0.6 * (data.optScore || 0);
+        html += '<span class="score-total">' + total.toFixed(1) + '</span>';
         html += '</div>';
         return html;
     };
@@ -244,6 +246,9 @@ function($, Handlebars, Spotboard) {
                         totalOptScore += (parseInt($(this).text()) || 0);
                     });
                     $team.find('.score-opt').text(totalOptScore);
+                    var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
+                    var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
+                    $team.find('.score-total').text(totalFinal.toFixed(1));
                 });
 
                 // 重新排序並更新排名
@@ -307,6 +312,10 @@ function($, Handlebars, Spotboard) {
             }
             teamData[i].$el.find('.team-rank').text(rank);
             // 更新排名顏色
+            if (contest) {
+                var ts = contest.getTeamStatus(teamData[i].$el.data('team-id'));
+                if (ts) ts._displayRank = rank;
+            }
             teamData[i].$el.removeClass('rank-top rank-high rank-mid rank-low');
             teamData[i].$el.addClass('rank-' + getRankClass(rank, totalTeams));
             $list.append(teamData[i].$el);
@@ -626,9 +635,12 @@ function($, Handlebars, Spotboard) {
             totalOptScore += scoreValue;
         });
         $team.find('.score-opt').text(totalOptScore);
+        var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
+        var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
+        $team.find('.score-total').text(totalFinal.toFixed(1));
         
-        // Update rank
-        var rank = teamStatus.getRank();
+        // Update rank using custom TotalScore rank if it exists, otherwise fallback
+        var rank = teamStatus._displayRank || teamStatus.getRank();
         Spotboard.View.updateTeamRank($team, rank, totalTeams);
 
         // Update CP problem indicators (A-L)

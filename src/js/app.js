@@ -7,11 +7,11 @@ function(Spotboard, $) {
     const params = new URLSearchParams(window.location.search);
     if(params.get('stream') == "on"){
         $("#nyan-gif").remove();
-        $("#mlg-container").remove();
-        $("#snoopdogg-container").remove();
+        $("#penguin-container").remove();
+        $("#ks-container").remove();
         $("#oiiai-gif").remove();
         $("#pop-gif").remove();
-        $("#quick-gif").remove();
+        $("#iq-gif").remove();
         $("#gif-off-icon").remove();
         $("#gif-on-icon").remove();
     }
