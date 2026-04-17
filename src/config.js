@@ -42,8 +42,8 @@ config =
     contestData : "http://localhost:3002/pdao_be/api/contest_data",
     optScoresApiUrl : "http://localhost:3002/pdao_be/api/opt_scores",
     optProblemViewIds : {
-        CC: 60,
-        ML: 62,
+        CC: 64,
+        ML: 65,
     },
     // 最佳化題目公式參數: weight = 該題配分(x), baseline = 基本解法分數(B)
     // 公式: score = weight * ((Si - baseline) / (Sbest - baseline))^1.5
