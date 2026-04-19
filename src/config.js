@@ -42,9 +42,18 @@ config =
     contestData : "http://localhost:3002/pdao_be/api/contest_data",
     optScoresApiUrl : "http://localhost:3002/pdao_be/api/opt_scores",
     optProblemViewIds : {
-        CC: 60,
-        ML: 62,
+        CC: 64,
+        ML: 65,
     },
+    // 最佳化題目公式參數: weight = 該題配分(x), baseline = 基本解法分數(B)
+    // 公式: score = weight * ((Si - baseline) / (Sbest - baseline))^1.5
+    // 若 Si <= baseline，得分為 0
+    optProblemFormula : {
+        CC: { weight: 50, baseline: 0 },
+        ML: { weight: 50, baseline: 0 },
+    },
+    // 最佳化分數自動刷新間隔 (毫秒)，預設 60 秒
+    opt_refresh_interval : 60000,
     /*
     apiBase : "./PDAO2025_result.json",
     contestData : "./PDAO2025_contestData.json",

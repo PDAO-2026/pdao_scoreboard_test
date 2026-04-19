@@ -89,12 +89,40 @@ function($, Handlebars, Spotboard) {
     };
 
 
-    // team list template (handlebars) from index.html
-    Spotboard.JST['teamlist'] = (function() {
-        var html = $('#team-handlebar-template').html().trim();
-        if(!html) throw new Error('team-handlebar-template is missing');
-        return Handlebars.compile(html);
-    })();
+    // team list template - manual string builder (no eval needed)
+    Spotboard.JST['teamlist'] = function(data) {
+        var html = '<div id="team-' + data.id + '" class="team rank-' + data.rankClass + '" data-team-id="' + data.id + '">';
+        html += '<span class="team-rank">' + data.rank + '</span>';
+        html += '<span class="team-name-col">';
+        html += '<span class="team-name">' + data.name + '</span>';
+        html += '<span class="team-dept">' + data.group + '</span>';
+        html += '</span>';
+        html += '<span class="problem-indicators">';
+        for (var i = 0; i < data.problems.length; i++) {
+            var p = data.problems[i];
+            html += '<span class="prob-ind-wrapper">';
+            html += '<span class="prob-ind prob-' + p.name + '" data-problem-id="' + p.id + '">' + p.name + '</span>';
+            html += '<span class="prob-penalty" data-problem-id="' + p.id + '"></span>';
+            html += '</span>';
+        }
+        html += '</span>';
+        html += '<span class="score-cp">' + data.cpScore + '</span>';
+        html += '<span class="score-time"><span class="time-base">' + data.time + '</span><span class="time-penalty"></span></span>';
+        html += '<span class="opt-indicators">';
+        for (var j = 0; j < data.optProblems.length; j++) {
+            var op = data.optProblems[j];
+            html += '<span class="opt-ind-wrapper">';
+            html += '<span class="opt-ind opt-' + op.name + '" data-problem-id="' + op.id + '">' + op.label + '</span>';
+            html += '<span class="opt-score" data-problem-id="' + op.id + '" style="display:block;font-size:0.8em;text-align:center;">' + (op.score || '') + '</span>';
+            html += '</span>';
+        }
+        html += '</span>';
+        html += '<span class="score-opt">' + data.optScore + '</span>';
+        var total = 0.4 * (data.cpScore || 0) + 0.6 * (data.optScore || 0);
+        html += '<span class="score-total">' + total.toFixed(1) + '</span>';
+        html += '</div>';
+        return html;
+    };
 
     // Helper to get rank class for coloring
     var getRankClass = function(rank, totalTeams) {
@@ -103,6 +131,200 @@ function($, Handlebars, Spotboard) {
         if (percentile <= 0.33) return 'high';
         if (percentile <= 0.66) return 'mid';
         return 'low';
+    };
+
+    /**
+     * 最佳化計分公式：score = weight * ((Si - B) / (Sbest - B))^1.5
+     * 若 Si <= B，得分為 0
+     *
+     * @param rawScores  {teamId: rawScore} 原始分數
+     * @param weight     該題配分 (x)
+     * @param baseline   基本解法分數 (B)
+     * @returns {teamId: calculatedScore}
+     */
+    Spotboard.View._applyOptFormula = function(rawScores, weight, baseline) {
+        // 找出 Sbest（所有有效提交中的最高原始分數）
+        var sBest = 0;
+        for (var tid in rawScores) {
+            if (rawScores.hasOwnProperty(tid) && rawScores[tid] > sBest) {
+                sBest = rawScores[tid];
+            }
+        }
+
+        var result = {};
+        for (var tid in rawScores) {
+            if (!rawScores.hasOwnProperty(tid)) continue;
+            var si = rawScores[tid];
+            if (si <= baseline || sBest <= baseline) {
+                result[tid] = 0;
+            } else {
+                result[tid] = weight * Math.pow((si - baseline) / (sBest - baseline), 1.5);
+            }
+        }
+        return result;
+    };
+
+    /**
+     * 每分鐘自動刷新最佳化分數，套用公式後更新 DOM 並重新排名
+     */
+    Spotboard.View.refreshOptScores = function() {
+        var contest = Spotboard.contest;
+        if (!contest) return;
+
+        var optScoresApiUrl = Spotboard.config['optScoresApiUrl'] || '/pdao_be/api/opt_scores';
+        var optProblemViewIds = Spotboard.config['optProblemViewIds'] || { CC: 60, ML: 62 };
+        var optFormula = Spotboard.config['optProblemFormula'] || {};
+
+        var scoreRequests = [];
+        var requestedKeys = [];
+        var requestedViewIds = [];
+
+        for (var problemKey in optProblemViewIds) {
+            if (!optProblemViewIds.hasOwnProperty(problemKey)) continue;
+            var viewId = String(optProblemViewIds[problemKey]);
+            requestedKeys.push(problemKey);
+            requestedViewIds.push(viewId);
+            scoreRequests.push($.ajax({
+                url: optScoresApiUrl,
+                type: 'GET',
+                dataType: 'json',
+                timeout: 10000,
+                data: { view_id: viewId }
+            }));
+        }
+
+        if (!scoreRequests.length) return;
+
+        $.when.apply($, scoreRequests)
+            .done(function() {
+                var responses = scoreRequests.length === 1 ? [arguments] : Array.prototype.slice.call(arguments);
+
+                // 收集每題的原始分數並套用公式
+                var calculatedByKey = {}; // { 'CC': {tid: score}, 'ML': {tid: score} }
+                for (var i = 0; i < responses.length; i++) {
+                    var payload = responses[i][0];
+                    var key = requestedKeys[i];
+                    if (payload && payload.success && payload.data) {
+                        var rawScores = payload.data; // {teamId: rawScore}
+                        var formula = optFormula[key] || { weight: 50, baseline: 0 };
+                        calculatedByKey[key] = Spotboard.View._applyOptFormula(rawScores, formula.weight, formula.baseline);
+                    } else {
+                        calculatedByKey[key] = {};
+                    }
+                }
+
+                // 更新 DOM 中每個隊伍的 opt 分數
+                $('#team-list .team').each(function() {
+                    var $team = $(this);
+                    var teamId = String($team.data('team-id'));
+
+                    // 更新每個 opt 題目的分數
+                    $team.find('.opt-ind-wrapper').each(function() {
+                        var $wrapper = $(this);
+                        var $ind = $wrapper.find('.opt-ind');
+                        var $scoreSpan = $wrapper.find('.opt-score');
+
+                        // 從 opt-ind 的 class 取得題目 key (e.g. 'CC', 'ML')
+                        var problemKey = null;
+                        var classList = $ind.attr('class') || '';
+                        for (var k in calculatedByKey) {
+                            if (classList.indexOf('opt-' + k) >= 0) {
+                                problemKey = k;
+                                break;
+                            }
+                        }
+
+                        if (problemKey && calculatedByKey[problemKey]) {
+                            var score = calculatedByKey[problemKey][teamId] || 0;
+                            $scoreSpan.text(Math.round(score));
+                        }
+                    });
+
+                    // 重新計算 opt 總分
+                    var totalOptScore = 0;
+                    $team.find('.opt-score').each(function() {
+                        totalOptScore += (parseInt($(this).text()) || 0);
+                    });
+                    $team.find('.score-opt').text(totalOptScore);
+                    var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
+                    var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
+                    $team.find('.score-total').text(totalFinal.toFixed(1));
+                });
+
+                // 重新排序並更新排名
+                Spotboard.View._resortAndRerank();
+
+                if (console) console.log('[Opt Refresh] 最佳化分數已更新');
+            })
+            .fail(function(xhr, stat, err) {
+                if (console) console.log('[Opt Refresh] 抓取最佳化分數失敗: ' + (err || stat));
+            });
+    };
+
+    /**
+     * 根據目前 DOM 中的分數重新排序隊伍並更新排名
+     */
+    Spotboard.View._resortAndRerank = function() {
+        var $list = $('#team-list');
+        var $teams = $list.children('.team').detach();
+        var contest = Spotboard.contest;
+
+        // 計算每隊的綜合分數
+        var teamData = [];
+        $teams.each(function() {
+            var $team = $(this);
+            var teamId = $team.data('team-id');
+            var cpScore = parseInt($team.find('.score-cp').text()) || 0;
+            var optScore = parseInt($team.find('.score-opt').text()) || 0;
+            var total = 0.4 * cpScore + 0.6 * optScore;
+
+            // 取得罰時
+            var penalty = 0;
+            if (contest) {
+                var teamStatus = contest.getTeamStatus(teamId);
+                if (teamStatus) {
+                    penalty = teamStatus.getSectionPenalty('CP') || 0;
+                }
+            }
+
+            teamData.push({ $el: $team, total: total, penalty: penalty });
+        });
+
+        // 排序：綜合分數高的在前，分數相同比罰時
+        teamData.sort(function(a, b) {
+            if (a.total !== b.total) return b.total - a.total;
+            return a.penalty - b.penalty;
+        });
+
+        // 指定排名並放回 DOM
+        var totalTeams = teamData.length;
+        for (var i = 0; i < teamData.length; i++) {
+            var rank;
+            if (i === 0) {
+                rank = 1;
+            } else {
+                var prev = teamData[i - 1];
+                if (teamData[i].total === prev.total && teamData[i].penalty === prev.penalty) {
+                    rank = parseInt(prev.$el.find('.team-rank').text());
+                } else {
+                    rank = i + 1;
+                }
+            }
+            teamData[i].$el.find('.team-rank').text(rank);
+            // 更新排名顏色
+            if (contest) {
+                var ts = contest.getTeamStatus(teamData[i].$el.data('team-id'));
+                if (ts) ts._displayRank = rank;
+            }
+            teamData[i].$el.removeClass('rank-top rank-high rank-mid rank-low');
+            teamData[i].$el.addClass('rank-' + getRankClass(rank, totalTeams));
+            $list.append(teamData[i].$el);
+        }
+
+        // 更新 opt 題目指標的顏色
+        $('#team-list .team').each(function() {
+            Spotboard.View.updateTeamStatus($(this), totalTeams);
+        });
     };
 
     /**
@@ -145,12 +367,15 @@ function($, Handlebars, Spotboard) {
         // 依題目類型（CC/ML）各自請求不同 view_id 的分數
         var optScoresApiUrl = Spotboard.config['optScoresApiUrl'] || '/pdao_be/api/opt_scores';
         var optProblemViewIds = Spotboard.config['optProblemViewIds'] || { CC: 60, ML: 62 };
+        var optFormula = Spotboard.config['optProblemFormula'] || {};
         var scoreRequests = [];
+        var requestedKeys = [];
         var requestedViewIds = [];
 
         for (var problemKey in optProblemViewIds) {
             if (!optProblemViewIds.hasOwnProperty(problemKey)) continue;
             var viewId = String(optProblemViewIds[problemKey]);
+            requestedKeys.push(problemKey);
             requestedViewIds.push(viewId);
             scoreRequests.push($.ajax({
                 url: optScoresApiUrl,
@@ -176,10 +401,13 @@ function($, Handlebars, Spotboard) {
 
                 for (var i = 0; i < responses.length; i++) {
                     var payload = responses[i][0];
+                    var key = requestedKeys[i];
                     var fallbackViewId = requestedViewIds[i];
                     if (payload && payload.success && payload.data) {
                         var responseViewId = payload.view_id ? String(payload.view_id) : fallbackViewId;
-                        scoresByViewId[responseViewId] = payload.data;
+                        // 套用最佳化計分公式
+                        var formula = optFormula[key] || { weight: 50, baseline: 0 };
+                        scoresByViewId[responseViewId] = Spotboard.View._applyOptFormula(payload.data, formula.weight, formula.baseline);
                     }
                 }
 
@@ -203,31 +431,75 @@ function($, Handlebars, Spotboard) {
     Spotboard.View._renderScoreboard = function(rankedList, totalTeams, cpProblems, optProblems, isTeamInfoHidden, $list, scoresByViewId, optProblemViewIds) {
         scoresByViewId = scoresByViewId || {};
         optProblemViewIds = optProblemViewIds || {};
+
+        // Calculate opt total score per team from API data
+        var teamOptTotals = {};
+        var teamOptDetails = {};
+        for (var idx in rankedList) {
+            var ts = rankedList[idx];
+            var tid = ts.getTeam().getId();
+            var total = 0;
+            var details = {};
+            for (var i = 0; i < optProblems.length; i++) {
+                var op = optProblems[i];
+                var pk = String(op.label || op.name || '').toUpperCase();
+                var vid = String(optProblemViewIds[pk] || '');
+                var sm = scoresByViewId[vid] || {};
+                var s = sm[tid] || sm[String(tid)] || 0;
+                total += (typeof s === 'number' ? s : 0);
+                details[pk] = typeof s === 'number' ? Math.round(s) : 0;
+            }
+            teamOptTotals[tid] = Math.round(total);
+            teamOptDetails[tid] = details;
+        }
+
+        // Re-sort using opt scores from API: 0.6*opt + 0.4*CP
+        rankedList.sort(function(t1, t2) {
+            var total1 = 0.4 * (Math.round(t1.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[t1.getTeam().getId()] || 0);
+            var total2 = 0.4 * (Math.round(t2.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[t2.getTeam().getId()] || 0);
+            if (total1 !== total2) return total2 - total1;
+            var pen1 = t1.getSectionPenalty('CP') || 0;
+            var pen2 = t2.getSectionPenalty('CP') || 0;
+            return pen1 - pen2;
+        });
+
+        // Assign ranks
+        for (var r = 0; r < rankedList.length; r++) {
+            var curTeam = rankedList[r];
+            var curTotal = 0.4 * (Math.round(curTeam.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[curTeam.getTeam().getId()] || 0);
+            if (r === 0) {
+                curTeam._displayRank = 1;
+            } else {
+                var prevTeam = rankedList[r-1];
+                var prevTotal = 0.4 * (Math.round(prevTeam.getSectionPoints('CP') || 0)) + 0.6 * (teamOptTotals[prevTeam.getTeam().getId()] || 0);
+                if (curTotal === prevTotal && (curTeam.getSectionPenalty('CP') || 0) === (prevTeam.getSectionPenalty('CP') || 0)) {
+                    curTeam._displayRank = prevTeam._displayRank;
+                } else {
+                    curTeam._displayRank = r + 1;
+                }
+            }
+        }
+
         for(var idx in rankedList) {
             var teamStatus = rankedList[idx];
             var team = teamStatus.getTeam();
             if(Spotboard.Manager.isTeamExcluded(team)) continue;
 
             var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-            var optScore = teamStatus.getSectionPoints('Opt') || 0;
-            var rank = teamStatus.getRank();
-            var time = teamStatus.getSectionPenalty('CP') || 0;
+            var optScore = teamOptTotals[team.getId()] || 0;
+            var rank = teamStatus._displayRank || (parseInt(idx) + 1);
+            var time = teamStatus.getSectionBaseTime('CP') || 0;
             var rankClass = getRankClass(rank, totalTeams);
 
-            // 增強 optProblems 以包含每個團隊的分數
             var enhancedOptProblems = [];
             for (var i = 0; i < optProblems.length; i++) {
                 var optProb = optProblems[i];
-                var teamId = team.getId();
                 var problemKey = String(optProb.label || optProb.name || '').toUpperCase();
-                var mappedViewId = String(optProblemViewIds[problemKey] || '');
-                var scoreMap = scoresByViewId[mappedViewId] || {};
-                var teamOptScore = scoreMap[teamId] || scoreMap[String(teamId)] || 0;
                 enhancedOptProblems.push({
                     id: optProb.id,
                     name: optProb.name,
                     label: optProb.label,
-                    score: typeof teamOptScore === 'number' ? String(Math.round(teamOptScore)) : '0'
+                    score: String(teamOptDetails[team.getId()][problemKey] || 0)
                 });
             }
 
@@ -248,7 +520,12 @@ function($, Handlebars, Spotboard) {
             $list.append($item);
         }
 
-        Spotboard.View.refreshScoreboard();
+        // Update team status (colors) without re-sorting
+        var totalTeamsForUpdate = rankedList.length;
+        $('#team-list .team').each(function() {
+            Spotboard.View.updateTeamStatus($(this), totalTeamsForUpdate);
+        });
+        Spotboard.View.updateVisibility();
         $(Spotboard).trigger('drew');
     };
 
@@ -339,10 +616,16 @@ function($, Handlebars, Spotboard) {
 
         // Update scores
         var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-        var time = teamStatus.getSectionPenalty('CP') || 0;
+        var baseTime = teamStatus.getSectionBaseTime('CP') || 0;
+        var penaltyOnly = teamStatus.getSectionPenaltyOnly('CP') || 0;
 
         $team.find('.score-cp').text(cpScore);
-        $team.find('.score-time').text(time);
+        $team.find('.time-base').text(baseTime);
+        if (penaltyOnly > 0) {
+            $team.find('.time-penalty').text('+' + penaltyOnly);
+        } else {
+            $team.find('.time-penalty').text('');
+        }
         
         // Calculate total opt score by summing CC and ML scores
         var totalOptScore = 0;
@@ -352,9 +635,12 @@ function($, Handlebars, Spotboard) {
             totalOptScore += scoreValue;
         });
         $team.find('.score-opt').text(totalOptScore);
+        var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
+        var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
+        $team.find('.score-total').text(totalFinal.toFixed(1));
         
-        // Update rank
-        var rank = teamStatus.getRank();
+        // Update rank using custom TotalScore rank if it exists, otherwise fallback
+        var rank = teamStatus._displayRank || teamStatus.getRank();
         Spotboard.View.updateTeamRank($team, rank, totalTeams);
 
         // Update CP problem indicators (A-L)
@@ -389,25 +675,20 @@ function($, Handlebars, Spotboard) {
             }
         });
 
-        // Update Opt problem indicators
-        $team.find('.opt-ind').each(function() {
-            var $ind = $(this);
-            var pid = $ind.data('problem-id');
-            var problem = contest.getProblem(pid);
-            if (!problem) return;
+        // Update Opt problem indicators — use score from opt-score span (from API)
+        $team.find('.opt-ind-wrapper').each(function() {
+            var $wrapper = $(this);
+            var $ind = $wrapper.find('.opt-ind');
+            var $scoreSpan = $wrapper.find('.opt-score');
+            var score = parseInt($scoreSpan.text()) || 0;
 
-            var problemStat = teamStatus.getProblemStatus(problem);
             $ind.removeClass('has-score');
             $ind.css('background-color', ''); // reset
 
-            // For optimization: gradient from light blue to dark blue based on score
-            var points = problemStat.getHighestScore ? problemStat.getHighestScore() : problemStat.getPoints();
-            var cfg = problemStat.constructor.OPT_CONFIG ? problemStat.constructor.OPT_CONFIG[problem.getName()] : null;
-            var maxPoints = cfg ? cfg.x : 50;
-            if (points > 0) {
+            if (score > 0) {
                 $ind.addClass('has-score');
                 // Gradient: ratio 0->1 maps light blue (#90caf9) to dark blue (#0d47a1)
-                var ratio = Math.min(points / maxPoints, 1);
+                var ratio = Math.min(score / 50, 1);
                 var r = Math.round(144 - ratio * (144 - 13));
                 var g = Math.round(202 - ratio * (202 - 71));
                 var b = Math.round(249 - ratio * (249 - 161));

@@ -281,7 +281,7 @@ function(Spotboard, $)  {
             $(this).css('display', 'none');
             $("#gif-on-icon").css('display', 'block');
             $("#mlg-container").css('display', 'block');
-            $("#snoopdogg-container").css('display', 'block');
+            $("#ks-container").css('display', 'block');
         });
 
         $("#gif-on-icon").click( function() {
@@ -289,7 +289,7 @@ function(Spotboard, $)  {
             $(this).css('display', 'none');
             $("#gif-off-icon").css('display', 'block');
             $("#mlg-container").css('display', 'none');
-            $("#snoopdogg-container").css('display', 'none');
+            $("#ks-container").css('display', 'none');
         });
 
         $("#feed-auto-icon").click( function() {
@@ -457,6 +457,19 @@ function(Spotboard, $)  {
         renew_timer();
     };
 
+    /**
+     * 最佳化分數自動刷新計時器（預設每 60 秒）
+     */
+    Spotboard.Manager.initOptRefreshTimer = function() {
+        var interval = parseInt(Spotboard.config['opt_refresh_interval']) || 60000;
+        window.setInterval(function() {
+            if (console) console.log('[Opt Refresh] 自動刷新最佳化分數...');
+            Spotboard.View.refreshOptScores();
+        }, interval);
+
+        if (console) console.log('[Opt Refresh] 已啟動，間隔 ' + (interval / 1000) + ' 秒');
+    };
+
     // 자동 재생 (하나씩 런을 까는..)
     Spotboard.Manager.initAutoPlayTimer = function() {
         var interval = Spotboard.config['auto_play_delay'] || 1000;
@@ -547,6 +560,7 @@ function(Spotboard, $)  {
             // 자동 업데이트 및 자동 플레이를 활성화시킴.
             Spotboard.Manager.initUpdateTimer();
             Spotboard.Manager.initAutoPlayTimer();
+            Spotboard.Manager.initOptRefreshTimer();
             Spotboard.Manager.initTeamEventHandlers();
             Spotboard.Manager.initButtonEventHandlers();
             Spotboard.Manager.initSearchEventHandlers();

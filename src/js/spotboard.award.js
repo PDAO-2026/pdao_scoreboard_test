@@ -471,28 +471,32 @@ function($, Spotboard) {
     });
 
     // 어워드 슬라이드 템플릿
-    Spotboard.JST['awardslide'] = Handlebars.compile('\
-<div class="award-slide">\
-    <div class="award-rank">{{humanizeRank rank}}</div>\
-    <div class="award-represents">{{group}}</div>\
-    <div class="award-teamname">{{name}}</div>\
-{{#if others}}\
-    <div class="award-others">\
-        <ul>\
-            {{#each others}}\
-            <li>\
-                <span class="award-represents">{{group}}</span> &mdash;\
-                <span class="award-teamname">{{name}}</span>\
-                {{#if rank}}\
-                    (<span class="award-rank suffix-{{ordinalSuffix rank}}">{{rank}}</span>)\
-                {{/if}}\
-            </li>\
-            {{/each}}\
-        </ul>\
-    </div>\
-{{/if}}\
-</div>\
-');
+    Spotboard.JST['awardslide'] = function(data) {
+        var humanize = function(rank) {
+            if (typeof rank === 'number')
+                return '<span class="suffix-' + Spotboard.Util.ordinalSuffix(rank) + '">' + rank + '</span> Place';
+            return rank;
+        };
+        var html = '<div class="award-slide">';
+        html += '<div class="award-rank">' + humanize(data.rank) + '</div>';
+        html += '<div class="award-represents">' + data.group + '</div>';
+        html += '<div class="award-teamname">' + data.name + '</div>';
+        if (data.others && data.others.length) {
+            html += '<div class="award-others"><ul>';
+            for (var i = 0; i < data.others.length; i++) {
+                var o = data.others[i];
+                html += '<li><span class="award-represents">' + o.group + '</span> &mdash; ';
+                html += '<span class="award-teamname">' + o.name + '</span>';
+                if (o.rank) {
+                    html += '(<span class="award-rank suffix-' + Spotboard.Util.ordinalSuffix(o.rank) + '">' + o.rank + '</span>)';
+                }
+                html += '</li>';
+            }
+            html += '</ul></div>';
+        }
+        html += '</div>';
+        return html;
+    };
 
     Spotboard.Award.AwardSlide = {
         data : {},

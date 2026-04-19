@@ -328,7 +328,8 @@ sup {
 }
 
 @media all and (min-width: 1300px) {
-    .dashboard #team-list {
+    .dashboard #team-list,
+    .dashboard #scoreboard-header {
         width: calc(100% - 256px - 10px);
         float: left;
     }
@@ -1042,7 +1043,7 @@ div.results:after {
     background-color: gray;
 }
 
-#snoopdogg-container {
+#ks-container {
     position: fixed;
     bottom: 15px;
     left: 0;
@@ -1051,7 +1052,7 @@ div.results:after {
     z-index: 1000;
 }
 
-#mlg-container {
+#penguin-container {
     position: fixed;
     bottom: 0;
     right: 0;
@@ -1080,7 +1081,7 @@ div.results:after {
     z-index: 1000;
 }
 
-#quick-gif {
+#iq-gif {
     position: fixed;
     display: none;
     top: 50%;
@@ -1158,6 +1159,12 @@ div.results:after {
 .header-opt {
     width: 95px;
     flex-shrink: 0;
+}
+
+.header-total {
+    width: 95px;
+    flex-shrink: 0;
+    text-align: center;
 }
 
 #team-list .team {
@@ -1286,6 +1293,22 @@ div.results:after {
     flex-shrink: 0;
     text-align: center;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-base {
+    line-height: 1.2;
+}
+
+.time-penalty {
+    font-size: 0.6em;
+    color: #d32f2f;
+    font-weight: 700;
+    line-height: 1;
+    min-height: 12px;
 }
 
 .opt-indicators {
@@ -1315,6 +1338,12 @@ div.results:after {
 }
 
 #team-list .team .score-opt {
+    width: 95px;
+    flex-shrink: 0;
+    text-align: center;
+    font-weight: 600;
+}
+#team-list .team .score-total {
     width: 95px;
     flex-shrink: 0;
     text-align: center;
