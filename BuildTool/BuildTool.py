@@ -111,7 +111,7 @@ def Edit_Scoreboard_Credit_File():
     data = {
         "sid": sid,
         "token": headers["auth-token"],
-        "frozen": True
+        "frozen": False
     }
     with open(scoreboard_path, mode='w', encoding='utf-8') as json_file:
         json.dump(data, json_file, indent=4, ensure_ascii=False)
