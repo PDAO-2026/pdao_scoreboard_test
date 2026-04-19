@@ -77,10 +77,31 @@ def load_frozen():
     except json.JSONDecodeError:
         raise ValueError(f"Configuration file '{CONFIG_PATH}' is not valid JSON.")
 
-def save_frozen(frozen):
+def load_freeze_run_id():
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        freeze_run_id = config.get("freeze_run_id")
+        if freeze_run_id is None:
+            return None
+        return int(freeze_run_id)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Configuration file '{CONFIG_PATH}' not found.")
+    except json.JSONDecodeError:
+        raise ValueError(f"Configuration file '{CONFIG_PATH}' is not valid JSON.")
+    except (TypeError, ValueError):
+        return None
+
+def save_frozen(frozen, freeze_run_id=None):
     global sid, token
+    config = {
+        "sid": sid,
+        "token": token,
+        "frozen": bool(frozen)
+    }
+    if frozen and freeze_run_id is not None:
+      config["freeze_run_id"] = int(freeze_run_id)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        config = {"sid": sid, "token": token, "frozen": frozen}
         json.dump(config, f, indent=2)
 
 # 載入帳號資料
@@ -138,19 +159,15 @@ def load_runs(admin=False):
             data = res.json()
         if data["success"] == False:
             return {"success": False, "error": data["error"]}
-        contestTime = data["data"]["time"]["contestTime"]
-        timestamp = data["data"]["time"]["timestamp"]
-        #if end and flag is frozen bypass admin
-        if load_frozen() and contestTime <= timestamp and not admin:
-            left,right = -1, len(data["data"]["runs"])
-            while left + 1 < right:
-                mid = (left + right) // 2
-                if data["data"]["runs"][mid]["submissionTime"] * 60 + 3600 > contestTime:
-                    right = mid
-                else:
-                    left = mid
-            for i in range(left+1, len(data["data"]["runs"])):
-                data["data"]["runs"][i]["result"] = "Pending"
+        # Manual freeze: once enabled, mask all runs after the frozen run id.
+        if load_frozen() and not admin:
+            freeze_run_id = load_freeze_run_id()
+            if freeze_run_id is None:
+                return {"success": False, "error": "Missing freeze_run_id while frozen is enabled"}
+
+            for run in data["data"]["runs"]:
+                if int(run.get("id", -1)) > freeze_run_id:
+                    run["result"] = "Pending"
         return {"success": True, "data": data}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -578,8 +595,31 @@ def frozen():
             error:
               type: string
     """
-    Frozen_flag = request.json.get("frozen", True)
-    save_frozen(Frozen_flag)
+    payload = request.get_json(silent=True) or {}
+    Frozen_flag = bool(payload.get("frozen", True))
+
+    freeze_run_id = None
+    if Frozen_flag:
+        existing_frozen = load_frozen()
+        existing_run_id = load_freeze_run_id()
+
+        # Reuse existing freeze point when available.
+        if existing_frozen and existing_run_id is not None:
+            freeze_run_id = existing_run_id
+        else:
+          # Lock to the latest run id from contest API.
+            current_runs = load_runs(admin=True)
+            if not current_runs.get("success", False):
+                return jsonify({
+                    "success": "False",
+                    "status": "False",
+            "error": "Unable to determine freeze run id"
+                }), 500
+
+            runs = current_runs["data"]["data"].get("runs", [])
+        freeze_run_id = int(runs[-1].get("id", -1)) if runs else -1
+
+    save_frozen(Frozen_flag, freeze_run_id)
     return jsonify({"success": "True", "status": "True" if Frozen_flag else "False", "error": "Null"})
 
 @app.route("/pdao_be/api/opt_scores", methods=["GET"], endpoint="api-opt_scores")
