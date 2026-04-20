@@ -20,6 +20,38 @@
 | `BuildTool/TeamsData.csv` | 隊伍名單 |
 | `BuildTool/ProblemsData.csv` | 題目列表 |
 
+## 分段計分設定（CP/Opt 時間窗口）
+
+比賽分兩階段：CP 階段結束後，CP 遲交的提交不算分；Opt 階段開始後才會顯示 pdogs 的 opt 分數。
+
+在 `backend/backend_file/scoreboard.json` 加入 `contest_windows` 區塊：
+
+```json
+{
+    "sid": "43",
+    "token": "...",
+    "frozen": true,
+    "contest_windows": {
+        "cp_end_minute": 120,
+        "opt_problem_ids": [2083, 2084]
+    }
+}
+```
+
+- `cp_end_minute`：CP 窗口截止（分鐘）。提交時間 ≤ 這個值的 CP 題才算分。
+- `opt_problem_ids`：哪些 problem id 算 Opt 題（其餘都視為 CP）。
+
+**運作機制**：
+1. `/pdao_be/api/runs` 過濾掉 `submissionTime > cp_end_minute` 的 CP 題提交。
+2. 只要偵測到任何一筆提交時間 > `cp_end_minute`，就在 `backend/backend_file/.cp_phase_ended` 建立 marker 檔（多 worker 共用）。
+3. 有 marker 之前，`/pdao_be/api/opt_scores` 回空 dict（前端顯示 0 分）；之後才透傳 pdogs 的真實分數。
+
+**重置（重開比賽或測試）**：
+```bash
+rm backend/backend_file/.cp_phase_ended
+pm2 restart scoreboard-backend
+```
+
 ## Auth Token（每 5 天更新一次）
 
 - pdogs 的 auth-token 有效期 **5 天**
