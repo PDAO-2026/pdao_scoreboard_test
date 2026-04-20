@@ -39,10 +39,32 @@ ACCOUNT_PATH = "backend_file/account.json"
 CONFIG_PATH = "backend_file/scoreboard.json"
 DATA_PATH = "backend_file/contest_data.json"
 SESSION_KEY_PATH = "backend_file/session_key.txt"
+CP_PHASE_ENDED_MARK = "backend_file/.cp_phase_ended"
 
 # config data
 contest_data, problem_meta, team_info = None, None, None
 sid, token = None, None
+
+# ==== Time-windowed scoring state ====
+# CP submissions with submissionTime > CP_END_MINUTE are dropped, so that any
+# CP runs made during the Opt phase don't keep accumulating CP score.
+# The cp_phase_ended flag is persisted to a marker file so all gunicorn
+# workers agree on the state; once flipped on, we never flip it back.
+DEFAULT_CP_END_MINUTE = 120
+DEFAULT_OPT_PROBLEM_IDS = [2083, 2084]
+
+def is_cp_phase_ended():
+    return os.path.exists(CP_PHASE_ENDED_MARK)
+
+def mark_cp_phase_ended():
+    # Only write the marker once; subsequent calls are no-ops.
+    if not os.path.exists(CP_PHASE_ENDED_MARK):
+        try:
+            with open(CP_PHASE_ENDED_MARK, "w") as f:
+                f.write("1")
+        except OSError:
+            # Fall back silently; the in-process call sites can retry later.
+            pass
 
 # 讀取配置檔案
 def load_config():
@@ -77,6 +99,30 @@ def load_frozen():
     except json.JSONDecodeError:
         raise ValueError(f"Configuration file '{CONFIG_PATH}' is not valid JSON.")
 
+def load_contest_windows():
+    """Read the CP/Opt window config.
+
+    Returns a tuple (cp_end_minute, opt_problem_ids_set).
+    Falls back to defaults if the config section is missing or malformed.
+    """
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return DEFAULT_CP_END_MINUTE, set(DEFAULT_OPT_PROBLEM_IDS)
+
+    windows = config.get("contest_windows", {}) or {}
+    try:
+        cp_end = int(windows.get("cp_end_minute", DEFAULT_CP_END_MINUTE))
+    except (TypeError, ValueError):
+        cp_end = DEFAULT_CP_END_MINUTE
+    opt_ids_raw = windows.get("opt_problem_ids", DEFAULT_OPT_PROBLEM_IDS) or DEFAULT_OPT_PROBLEM_IDS
+    try:
+        opt_ids = {int(x) for x in opt_ids_raw}
+    except (TypeError, ValueError):
+        opt_ids = set(DEFAULT_OPT_PROBLEM_IDS)
+    return cp_end, opt_ids
+
 def load_freeze_run_id():
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -94,13 +140,22 @@ def load_freeze_run_id():
 
 def save_frozen(frozen, freeze_run_id=None):
     global sid, token
-    config = {
-        "sid": sid,
-        "token": token,
-        "frozen": bool(frozen)
-    }
+    # Preserve any other fields already present in the config file
+    # (e.g. contest_windows) rather than overwriting them.
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {}
+
+    config["sid"] = sid
+    config["token"] = token
+    config["frozen"] = bool(frozen)
     if frozen and freeze_run_id is not None:
-      config["freeze_run_id"] = int(freeze_run_id)
+        config["freeze_run_id"] = int(freeze_run_id)
+    elif not frozen:
+        config.pop("freeze_run_id", None)
+
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
@@ -159,6 +214,33 @@ def load_runs(admin=False):
             data = res.json()
         if data["success"] == False:
             return {"success": False, "error": data["error"]}
+
+        # Time-window filtering: any CP submission after the CP window closes
+        # is dropped so it never contributes to the CP score. Detecting a single
+        # submission past the CP window also flips cp_phase_ended, which gates
+        # the /opt_scores endpoint.
+        cp_end_minute, opt_problem_ids = load_contest_windows()
+        runs_list = data["data"].get("runs", []) or []
+        filtered_runs = []
+        for run in runs_list:
+            try:
+                submission_minute = int(run.get("submissionTime", 0))
+            except (TypeError, ValueError):
+                submission_minute = 0
+            try:
+                problem_id = int(run.get("problem"))
+            except (TypeError, ValueError):
+                problem_id = None
+
+            is_opt = problem_id in opt_problem_ids
+            if submission_minute > cp_end_minute:
+                mark_cp_phase_ended()
+                if not is_opt:
+                    # CP submission after the CP window: drop entirely.
+                    continue
+            filtered_runs.append(run)
+        data["data"]["runs"] = filtered_runs
+
         # Manual freeze: once enabled, mask all runs after the frozen run id.
         if load_frozen() and not admin:
             freeze_run_id = load_freeze_run_id()
@@ -672,10 +754,16 @@ def get_opt_scores():
         # 從參數或配置中獲取 view_id 和 auth_token
         view_id = request.args.get("view_id", "60")
         auth_token = request.args.get("auth_token", token)
-        
+
         if not auth_token:
             return jsonify({"success": False, "error": "Auth token not configured"}), 400
-        
+
+        # Gate: while we're still in the CP phase, do not expose any Opt
+        # scores (even if PDOGS has earlier submissions on record). Return
+        # an empty score dict so every team displays zero on the frontend.
+        if not is_cp_phase_ended():
+            return jsonify({"success": True, "view_id": str(view_id), "data": {}})
+
         # 呼叫外部 PDOGS API
         url = f"https://be.pdogs.ntu.im/team-project-scoreboard/view/{view_id}"
         headers = {
