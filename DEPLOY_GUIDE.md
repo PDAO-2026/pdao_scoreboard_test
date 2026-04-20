@@ -24,17 +24,12 @@
 
 比賽分兩階段：CP 階段結束後，CP 遲交的提交不算分；Opt 階段開始後才會顯示 pdogs 的 opt 分數。
 
-在 `backend/backend_file/scoreboard.json` 加入 `contest_windows` 區塊：
+設定檔：**`backend/backend_file/contest_windows.json`**（已在 git 裡，有預設值，不會被 BuildTool 或封版操作洗掉）
 
 ```json
 {
-    "sid": "43",
-    "token": "...",
-    "frozen": true,
-    "contest_windows": {
-        "cp_end_minute": 120,
-        "opt_problem_ids": [2083, 2084]
-    }
+    "cp_end_minute": 120,
+    "opt_problem_ids": [2083, 2084]
 }
 ```
 

@@ -40,6 +40,7 @@ CONFIG_PATH = "backend_file/scoreboard.json"
 DATA_PATH = "backend_file/contest_data.json"
 SESSION_KEY_PATH = "backend_file/session_key.txt"
 CP_PHASE_ENDED_MARK = "backend_file/.cp_phase_ended"
+CONTEST_WINDOWS_PATH = "backend_file/contest_windows.json"
 
 # config data
 contest_data, problem_meta, team_info = None, None, None
@@ -100,18 +101,18 @@ def load_frozen():
         raise ValueError(f"Configuration file '{CONFIG_PATH}' is not valid JSON.")
 
 def load_contest_windows():
-    """Read the CP/Opt window config.
+    """Read the CP/Opt window config from its dedicated file.
 
-    Returns a tuple (cp_end_minute, opt_problem_ids_set).
-    Falls back to defaults if the config section is missing or malformed.
+    Kept in its own JSON file so it survives scoreboard.json rewrites from
+    BuildTool.py and the frozen toggle. Returns (cp_end_minute, opt_ids_set),
+    falling back to sensible defaults when the file is missing or malformed.
     """
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        with open(CONTEST_WINDOWS_PATH, "r", encoding="utf-8") as f:
+            windows = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return DEFAULT_CP_END_MINUTE, set(DEFAULT_OPT_PROBLEM_IDS)
 
-    windows = config.get("contest_windows", {}) or {}
     try:
         cp_end = int(windows.get("cp_end_minute", DEFAULT_CP_END_MINUTE))
     except (TypeError, ValueError):
@@ -140,22 +141,13 @@ def load_freeze_run_id():
 
 def save_frozen(frozen, freeze_run_id=None):
     global sid, token
-    # Preserve any other fields already present in the config file
-    # (e.g. contest_windows) rather than overwriting them.
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        config = {}
-
-    config["sid"] = sid
-    config["token"] = token
-    config["frozen"] = bool(frozen)
+    config = {
+        "sid": sid,
+        "token": token,
+        "frozen": bool(frozen)
+    }
     if frozen and freeze_run_id is not None:
-        config["freeze_run_id"] = int(freeze_run_id)
-    elif not frozen:
-        config.pop("freeze_run_id", None)
-
+      config["freeze_run_id"] = int(freeze_run_id)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
