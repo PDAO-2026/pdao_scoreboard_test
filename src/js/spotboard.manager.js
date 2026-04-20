@@ -462,12 +462,27 @@ function(Spotboard, $)  {
      */
     Spotboard.Manager.initOptRefreshTimer = function() {
         var interval = parseInt(Spotboard.config['opt_refresh_interval']) || 60000;
+        // Freeze opt scores in the last 30 min (default: freeze after 290 min, resume at contest end)
+        var freezeStartSec = (Spotboard.config['opt_freeze_start_minute'] != null
+            ? parseInt(Spotboard.config['opt_freeze_start_minute'])
+            : 290) * 60;
+
         window.setInterval(function() {
+            var runfeeder = Spotboard.runfeeder;
+            if (runfeeder) {
+                var elapsed = runfeeder.getLastTimeStamp();
+                var total = runfeeder.getContestTime();
+                // Skip during freeze window (after 290 min, before contest end)
+                if (elapsed > freezeStartSec && total > 0 && elapsed < total) {
+                    if (console) console.log('[Opt Refresh] 凍結中，跳過更新 (elapsed=' + Math.floor(elapsed/60) + 'min)');
+                    return;
+                }
+            }
             if (console) console.log('[Opt Refresh] 自動刷新最佳化分數...');
             Spotboard.View.refreshOptScores();
         }, interval);
 
-        if (console) console.log('[Opt Refresh] 已啟動，間隔 ' + (interval / 1000) + ' 秒');
+        if (console) console.log('[Opt Refresh] 已啟動，間隔 ' + (interval / 1000) + ' 秒，凍結起點 ' + Math.floor(freezeStartSec/60) + ' 分鐘');
     };
 
     // 자동 재생 (하나씩 런을 까는..)
