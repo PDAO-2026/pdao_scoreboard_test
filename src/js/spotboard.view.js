@@ -236,16 +236,16 @@ function($, Handlebars, Spotboard) {
 
                         if (problemKey && calculatedByKey[problemKey]) {
                             var score = calculatedByKey[problemKey][teamId] || 0;
-                            $scoreSpan.text(Math.round(score));
+                            $scoreSpan.text(score.toFixed(1));
                         }
                     });
 
                     // 重新計算 opt 總分
                     var totalOptScore = 0;
                     $team.find('.opt-score').each(function() {
-                        totalOptScore += (parseInt($(this).text()) || 0);
+                        totalOptScore += (parseFloat($(this).text()) || 0);
                     });
-                    $team.find('.score-opt').text(totalOptScore);
+                    $team.find('.score-opt').text(totalOptScore.toFixed(1));
                     var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
                     var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
                     $team.find('.score-total').text(totalFinal.toFixed(1));
@@ -275,7 +275,7 @@ function($, Handlebars, Spotboard) {
             var $team = $(this);
             var teamId = $team.data('team-id');
             var cpScore = parseInt($team.find('.score-cp').text()) || 0;
-            var optScore = parseInt($team.find('.score-opt').text()) || 0;
+            var optScore = parseFloat($team.find('.score-opt').text()) || 0;
             var total = 0.4 * cpScore + 0.6 * optScore;
 
             // 取得罰時
@@ -464,9 +464,9 @@ function($, Handlebars, Spotboard) {
                 var sm = scoresByViewId[vid] || {};
                 var s = sm[tid] || sm[String(tid)] || 0;
                 total += (typeof s === 'number' ? s : 0);
-                details[pk] = typeof s === 'number' ? Math.round(s) : 0;
+                details[pk] = typeof s === 'number' ? s : 0;
             }
-            teamOptTotals[tid] = Math.round(total);
+            teamOptTotals[tid] = total;
             teamOptDetails[tid] = details;
         }
 
@@ -503,7 +503,7 @@ function($, Handlebars, Spotboard) {
             if(Spotboard.Manager.isTeamExcluded(team)) continue;
 
             var cpScore = Math.round(teamStatus.getSectionPoints('CP') || 0);
-            var optScore = teamOptTotals[team.getId()] || 0;
+            var optScore = (teamOptTotals[team.getId()] || 0).toFixed(1);
             var rank = teamStatus._displayRank || (parseInt(idx) + 1);
             var time = teamStatus.getSectionBaseTime('CP') || 0;
             var rankClass = getRankClass(rank, totalTeams);
@@ -516,7 +516,7 @@ function($, Handlebars, Spotboard) {
                     id: optProb.id,
                     name: optProb.name,
                     label: optProb.label,
-                    score: String(teamOptDetails[team.getId()][problemKey] || 0)
+                    score: typeof teamOptDetails[team.getId()][problemKey] === 'number' ? teamOptDetails[team.getId()][problemKey].toFixed(1) : '0.0'
                 });
             }
 
@@ -648,10 +648,10 @@ function($, Handlebars, Spotboard) {
         var totalOptScore = 0;
         $team.find('.opt-score').each(function() {
             var scoreText = $(this).text();
-            var scoreValue = parseInt(scoreText) || 0;
+            var scoreValue = parseFloat(scoreText) || 0;
             totalOptScore += scoreValue;
         });
-        $team.find('.score-opt').text(totalOptScore);
+        $team.find('.score-opt').text(totalOptScore.toFixed(1));
         var cpScoreForTotal = parseInt($team.find('.score-cp').text()) || 0;
         var totalFinal = 0.4 * cpScoreForTotal + 0.6 * totalOptScore;
         $team.find('.score-total').text(totalFinal.toFixed(1));
@@ -697,7 +697,7 @@ function($, Handlebars, Spotboard) {
             var $wrapper = $(this);
             var $ind = $wrapper.find('.opt-ind');
             var $scoreSpan = $wrapper.find('.opt-score');
-            var score = parseInt($scoreSpan.text()) || 0;
+            var score = parseFloat($scoreSpan.text()) || 0;
 
             $ind.removeClass('has-score');
             $ind.css('background-color', ''); // reset
