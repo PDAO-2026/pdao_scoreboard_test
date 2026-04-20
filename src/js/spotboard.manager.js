@@ -18,6 +18,20 @@ function(Spotboard, $)  {
     Spotboard.Manager = {};
 
     Spotboard.Manager.displayedContestTime = null;
+    Spotboard.Manager._remainingSeconds = null;
+
+    Spotboard.Manager.isOptFrozen = function() {
+        var remaining = Spotboard.Manager._remainingSeconds;
+        if (remaining == null && Spotboard.runfeeder) {
+            var ct = Spotboard.runfeeder.getContestTime();
+            var ts = Spotboard.runfeeder.getLastTimeStamp();
+            remaining = ct > 0 ? Math.max(0, ct - ts) : null;
+        }
+        var freezeWindowSec = (Spotboard.config['opt_freeze_window_minute'] != null
+            ? parseInt(Spotboard.config['opt_freeze_window_minute'])
+            : 30) * 60;
+        return remaining != null && remaining > 0 && remaining <= freezeWindowSec;
+    };
 
     String.prototype.endsWith = function(suffix) {
         return this.indexOf(suffix, this.length - suffix.length) !== -1;
@@ -309,6 +323,7 @@ function(Spotboard, $)  {
             $("#update-icon").badger(runCount || '');
 
             var contestTime = Math.max(0, Spotboard.runfeeder.getContestTime() - Spotboard.runfeeder.getLastTimeStamp());
+            Spotboard.Manager._remainingSeconds = contestTime;
             if(contestTime <= 0)
                 $("#time-elapsed").css("color", "red").css("font-weight", "bold");
             else if(contestTime < 3600)
@@ -462,27 +477,43 @@ function(Spotboard, $)  {
      */
     Spotboard.Manager.initOptRefreshTimer = function() {
         var interval = parseInt(Spotboard.config['opt_refresh_interval']) || 60000;
-        // Freeze opt scores in the last 30 min (default: freeze after 290 min, resume at contest end)
-        var freezeStartSec = (Spotboard.config['opt_freeze_start_minute'] != null
-            ? parseInt(Spotboard.config['opt_freeze_start_minute'])
-            : 290) * 60;
+        // How many seconds before contest end to freeze (default: last 30 min = 1800s)
+        var freezeWindowSec = (Spotboard.config['opt_freeze_window_minute'] != null
+            ? parseInt(Spotboard.config['opt_freeze_window_minute'])
+            : 30) * 60;
+
+        var finalUpdateDone = false;
+        var finalUpdateScheduled = false;
 
         window.setInterval(function() {
+            // After the one final update is done, stop completely
+            if (finalUpdateDone) return;
+
             var runfeeder = Spotboard.runfeeder;
             if (runfeeder) {
-                var elapsed = runfeeder.getLastTimeStamp();
-                var total = runfeeder.getContestTime();
-                // Skip during freeze window (after 290 min, before contest end)
-                if (elapsed > freezeStartSec && total > 0 && elapsed < total) {
-                    if (console) console.log('[Opt Refresh] 凍結中，跳過更新 (elapsed=' + Math.floor(elapsed/60) + 'min)');
+                var remaining = Spotboard.Manager._remainingSeconds;
+
+                if (Spotboard.Manager.isOptFrozen()) {
+                    // Inside freeze window: schedule the one final update and skip
+                    if (!finalUpdateScheduled) {
+                        finalUpdateScheduled = true;
+                        var delay = Math.round(remaining + 10); // 10 sec after contest end
+                        setTimeout(function() {
+                            finalUpdateDone = true;
+                            if (console) console.log('[Opt Refresh] 比賽結束，執行最終更新');
+                            Spotboard.View.refreshOptScores();
+                        }, delay * 1000);
+                        if (console) console.log('[Opt Refresh] 凍結中，最終更新排程於 ' + delay + ' 秒後');
+                    }
                     return;
                 }
             }
+
             if (console) console.log('[Opt Refresh] 自動刷新最佳化分數...');
             Spotboard.View.refreshOptScores();
         }, interval);
 
-        if (console) console.log('[Opt Refresh] 已啟動，間隔 ' + (interval / 1000) + ' 秒，凍結起點 ' + Math.floor(freezeStartSec/60) + ' 分鐘');
+        if (console) console.log('[Opt Refresh] 已啟動，間隔 ' + (interval / 1000) + ' 秒，凍結最後 ' + (freezeWindowSec / 60) + ' 分鐘');
     };
 
     // 자동 재생 (하나씩 런을 까는..)

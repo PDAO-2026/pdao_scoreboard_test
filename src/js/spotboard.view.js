@@ -364,9 +364,21 @@ function($, Handlebars, Spotboard) {
         }
         optProblems.reverse();
 
+        // Skip opt API fetch during freeze window — use cached scores instead
+        var optProblemViewIds = Spotboard.config['optProblemViewIds'] || { CC: 60, ML: 62 };
+        if (Spotboard.Manager && Spotboard.Manager.isOptFrozen && Spotboard.Manager.isOptFrozen()) {
+            var cached = Spotboard.View._cachedOptScores;
+            if (!cached) {
+                try { cached = JSON.parse(localStorage.getItem('optScoresCache') || 'null'); } catch(e) {}
+            }
+            if (console) console.log('[Opt Refresh] drawScoreboard: 凍結中，使用快取分數');
+            Spotboard.View._renderScoreboard(rankedList, totalTeams, cpProblems, optProblems,
+                isTeamInfoHidden, $list, cached || {}, optProblemViewIds);
+            return;
+        }
+
         // 依題目類型（CC/ML）各自請求不同 view_id 的分數
         var optScoresApiUrl = Spotboard.config['optScoresApiUrl'] || '/pdao_be/api/opt_scores';
-        var optProblemViewIds = Spotboard.config['optProblemViewIds'] || { CC: 60, ML: 62 };
         var optFormula = Spotboard.config['optProblemFormula'] || {};
         var scoreRequests = [];
         var requestedKeys = [];
@@ -431,6 +443,11 @@ function($, Handlebars, Spotboard) {
     Spotboard.View._renderScoreboard = function(rankedList, totalTeams, cpProblems, optProblems, isTeamInfoHidden, $list, scoresByViewId, optProblemViewIds) {
         scoresByViewId = scoresByViewId || {};
         optProblemViewIds = optProblemViewIds || {};
+        // Cache the latest fetched opt scores for use during the freeze window
+        if (Object.keys(scoresByViewId).length > 0) {
+            Spotboard.View._cachedOptScores = scoresByViewId;
+            try { localStorage.setItem('optScoresCache', JSON.stringify(scoresByViewId)); } catch(e) {}
+        }
 
         // Calculate opt total score per team from API data
         var teamOptTotals = {};
