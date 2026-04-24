@@ -135,7 +135,7 @@ config =
      * e.g. function(team) { ... }
      */
     // this is the list of teams to be excluded from the scoreboard in PDAO 2025
-    exclude_teams : [],
+    exclude_teams : [2563,2564,2565,2566,2567,2568,2569,2570,2571,2572,2573,2574,2575,2576,2577,2578,2579,2580,2581,2583,2584,2585,2586,2587,2588,2589,2590,2591],
 
     /**
      * Specify additional foreign or extra teams, as a function or a list of team id.
