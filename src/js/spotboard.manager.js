@@ -29,7 +29,7 @@ function(Spotboard, $)  {
         }
         var freezeWindowSec = (Spotboard.config['opt_freeze_window_minute'] != null
             ? parseInt(Spotboard.config['opt_freeze_window_minute'])
-            : 30) * 60;
+            : 35) * 60;
         return remaining != null && remaining > 0 && remaining <= freezeWindowSec;
     };
 
@@ -477,10 +477,10 @@ function(Spotboard, $)  {
      */
     Spotboard.Manager.initOptRefreshTimer = function() {
         var interval = parseInt(Spotboard.config['opt_refresh_interval']) || 60000;
-        // How many seconds before contest end to freeze (default: last 30 min = 1800s)
+        // For log display only; freeze logic is in isOptFrozen()
         var freezeWindowSec = (Spotboard.config['opt_freeze_window_minute'] != null
             ? parseInt(Spotboard.config['opt_freeze_window_minute'])
-            : 30) * 60;
+            : 35) * 60;
 
         var finalUpdateDone = false;
         var finalUpdateScheduled = false;
