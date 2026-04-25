@@ -2,8 +2,42 @@ from flask import Flask, render_template, request, redirect, jsonify, session, u
 from functools import wraps
 from flask_cors import CORS
 from flasgger import Swagger, swag_from
-import requests, json, os, re, hashlib
+import requests, json, os, re, hashlib, threading, time, copy
 from datetime import timedelta
+
+# ==== PDOGS in-memory cache ====
+# Any outbound call to be.pdogs.ntu.im should go through pdogs_cached_get so
+# that a burst of concurrent frontends collapses into a single upstream
+# request per key per TTL window. Single-flight via per-key lock prevents
+# the thundering-herd when the entry expires.
+# NOTE: cache is per-process; under gunicorn each worker has its own copy.
+PDOGS_CACHE_TTL = 5.0  # seconds
+_pdogs_cache = {}
+_pdogs_cache_locks = {}
+_pdogs_cache_global_lock = threading.Lock()
+
+def _get_pdogs_key_lock(key):
+    with _pdogs_cache_global_lock:
+        lock = _pdogs_cache_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _pdogs_cache_locks[key] = lock
+        return lock
+
+def pdogs_cached_get(key, fetch_fn, ttl=PDOGS_CACHE_TTL):
+    now = time.monotonic()
+    entry = _pdogs_cache.get(key)
+    if entry and (now - entry[0]) < ttl:
+        return copy.deepcopy(entry[1])
+    lock = _get_pdogs_key_lock(key)
+    with lock:
+        now = time.monotonic()
+        entry = _pdogs_cache.get(key)
+        if entry and (now - entry[0]) < ttl:
+            return copy.deepcopy(entry[1])
+        value = fetch_fn()
+        _pdogs_cache[key] = (now, value)
+        return copy.deepcopy(value)
 
 app = Flask(__name__, static_url_path='/pdao_be/static')
 CORS(app, resources={r"/pdao_be/api/*": {"origins": "*"}})
@@ -201,9 +235,11 @@ def load_runs(admin=False):
                 "auth-token": token,
                 "Content-Type": "application/json"
             }
-            res = requests.get(url, headers=headers, timeout=3)
-            res.raise_for_status()
-            data = res.json()
+            def _fetch_runs():
+                res = requests.get(url, headers=headers, timeout=3)
+                res.raise_for_status()
+                return res.json()
+            data = pdogs_cached_get(("runs", sid), _fetch_runs)
         if data["success"] == False:
             return {"success": False, "error": data["error"]}
 
@@ -762,11 +798,12 @@ def get_opt_scores():
             "Auth-Token": auth_token,
             "Content-Type": "application/json"
         }
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
+
+        def _fetch_opt():
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        data = pdogs_cached_get(("opt", str(view_id), auth_token), _fetch_opt)
         
         if data.get("success", False):
             # 構建分數字典，以 team_id 為 key，total_score 為 value
