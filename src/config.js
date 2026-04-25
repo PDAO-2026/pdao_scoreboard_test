@@ -56,7 +56,7 @@ config =
     opt_refresh_interval : 60000,
     // 最佳化分數凍結視窗（分鐘）：比賽最後 N 分鐘不更新，結束後 10 秒才更新一次
     // 比賽 325 分鐘，凍結 290~325 → 最後 35 分鐘
-    opt_freeze_window_minute : 35,
+    opt_freeze_window_minute : 40,
     /*
     apiBase : "./PDAO2025_result.json",
     contestData : "./PDAO2025_contestData.json",
